@@ -27,6 +27,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Lowercase repository owner
+        run: echo "REPO_OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> ${GITHUB_ENV}
+
       - name: Build and Test Frontend
         run: |
           cd apps/web
@@ -38,7 +41,7 @@ jobs:
           context: .
           file: apps/web/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/elycubator-web:latest
+          tags: ghcr.io/${{ env.REPO_OWNER }}/elycubator-web:latest
 
       - name: Build and Push Backend Docker Image
         uses: docker/build-push-action@v5
@@ -46,7 +49,7 @@ jobs:
           context: .
           file: apps/api/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/elycubator-api:latest
+          tags: ghcr.io/${{ env.REPO_OWNER }}/elycubator-api:latest
 
   deploy-dev:
     needs: build-and-test
