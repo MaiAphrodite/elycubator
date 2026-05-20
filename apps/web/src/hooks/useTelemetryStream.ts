@@ -9,17 +9,18 @@ const AMBIENT_HUMIDITY = 70.0;
 const TARGET_TEMP = 37.5;
 const TARGET_HUMIDITY = 55.0;
 
-const LAMP_HEAT_PER_SEC = 0.4;
-const FAN_COOL_PER_SEC = 0.2;
-const FAN_DRY_PER_SEC = 1.2;
-const THERMAL_LEAK_PER_SEC = 0.04;
-const HUMIDITY_LEAK_PER_SEC = 0.02;
+// Wild Physics Parameters for high responsiveness and visible balancing acts
+const LAMP_HEAT_PER_SEC = 0.95;     // Aggressive heating
+const FAN_COOL_PER_SEC = 0.55;      // Powerful cooling
+const FAN_DRY_PER_SEC = 2.2;        // High drying rate when fan is on
+const THERMAL_LEAK_PER_SEC = 0.08;  // Faster leakage to see immediate decay when lamp is off
+const HUMIDITY_LEAK_PER_SEC = 0.05; // Quick humidity drift to ambient
 
-const DHT22_TEMP_NOISE = 0.25;
-const DHT22_HUMID_NOISE = 1.0;
+const DHT22_TEMP_NOISE = 0.15;
+const DHT22_HUMID_NOISE = 0.6;
 
-const FAULT_CHANCE = 0.008;
-const FAULT_DURATION_MS = 8000;
+const FAULT_CHANCE = 0.015;         // Slightly higher chance for fun occurrences
+const FAULT_DURATION_MS = 6000;
 
 interface SimState {
   temperature: number;
@@ -51,18 +52,24 @@ function noise(amp: number): number {
   return (Math.random() - 0.5) * 2 * amp;
 }
 
-function tick(): TelemetryReading {
+function tick(targetTimeMs?: number): TelemetryReading {
   const dt = TICK_MS / 1000;
-  const now = Date.now();
+  const now = targetTimeMs ?? Date.now();
+
+  // Dynamic ambient changes (simulating rapid room environmental oscillation)
+  const timeSec = now / 1000;
+  const activeAmbientTemp = AMBIENT_TEMP + Math.sin(timeSec / 30) * 2.0; // Oscillates +/- 2°C
+  const activeAmbientHumid = AMBIENT_HUMIDITY + Math.cos(timeSec / 20) * 6.0; // Oscillates +/- 6%
 
   const tempError = TARGET_TEMP - sim.temperature;
-  let lampDuty = clamp(tempError * 12 + noise(3), 0, 100);
+  let lampDuty = clamp(tempError * 18 + noise(4), 0, 100); // More aggressive proportional gain
 
   const humidError = sim.humidity - TARGET_HUMIDITY;
-  let fanDuty = clamp(humidError * 6 + noise(3), 0, 100);
+  let fanDuty = clamp(humidError * 10 + noise(4), 0, 100);
 
-  if (sim.temperature > TARGET_TEMP + 0.5) {
-    fanDuty = Math.max(fanDuty, 30 + (sim.temperature - TARGET_TEMP) * 15);
+  // Strong thermal coupling: Fan kicks in dynamically to cool overshoots
+  if (sim.temperature > TARGET_TEMP + 0.3) {
+    fanDuty = Math.max(fanDuty, 40 + (sim.temperature - TARGET_TEMP) * 25);
   }
 
   if (!sim.lampEnabled) lampDuty = 0;
@@ -71,24 +78,27 @@ function tick(): TelemetryReading {
   sim.lampDuty = clamp(lampDuty, 0, 100);
   sim.fanDuty = clamp(fanDuty, 0, 100);
 
+  // Apply Physics Engine changes
   sim.temperature += (sim.lampDuty / 100) * LAMP_HEAT_PER_SEC * dt;
   sim.temperature -= (sim.fanDuty / 100) * FAN_COOL_PER_SEC * dt;
-  sim.temperature += THERMAL_LEAK_PER_SEC * (AMBIENT_TEMP - sim.temperature) * dt;
+  sim.temperature += THERMAL_LEAK_PER_SEC * (activeAmbientTemp - sim.temperature) * dt;
 
   sim.humidity -= (sim.fanDuty / 100) * FAN_DRY_PER_SEC * dt;
-  sim.humidity += HUMIDITY_LEAK_PER_SEC * (AMBIENT_HUMIDITY - sim.humidity) * dt;
+  sim.humidity += HUMIDITY_LEAK_PER_SEC * (activeAmbientHumid - sim.humidity) * dt;
 
-  if (sim.lampDuty > 30) {
-    sim.humidity -= 0.03 * (sim.lampDuty / 100) * dt;
+  // Lamp thermal radiation drying effect
+  if (sim.lampDuty > 15) {
+    sim.humidity -= 0.15 * (sim.lampDuty / 100) * dt;
   }
 
-  if (now > sim.faultUntil && Math.random() < FAULT_CHANCE) {
+  // Inject Random Faults occasionally
+  if (!targetTimeMs && now > sim.faultUntil && Math.random() < FAULT_CHANCE) {
     sim.faultUntil = now + FAULT_DURATION_MS;
   }
 
   if (now < sim.faultUntil) {
-    sim.temperature += noise(2.0);
-    sim.humidity += noise(4.0);
+    sim.temperature += noise(2.5);
+    sim.humidity += noise(4.5);
   }
 
   sim.temperature += noise(DHT22_TEMP_NOISE);
@@ -97,8 +107,10 @@ function tick(): TelemetryReading {
   sim.temperature = clamp(sim.temperature, 15, 50);
   sim.humidity = clamp(sim.humidity, 10, 95);
 
+  const readingTime = new Date(now);
+
   return {
-    time: new Date().toLocaleTimeString([], {
+    time: readingTime.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
@@ -111,9 +123,27 @@ function tick(): TelemetryReading {
   };
 }
 
+// Generate beautiful stabilization curve instantly on mount
+function generateInitialHistory(): TelemetryReading[] {
+  const list: TelemetryReading[] = [];
+  const now = Date.now();
+  
+  // Reset sim state to ambient for pristine startup history
+  sim.temperature = AMBIENT_TEMP;
+  sim.humidity = AMBIENT_HUMIDITY;
+  sim.lampDuty = 0;
+  sim.fanDuty = 0;
+
+  for (let i = 0; i < MAX_HISTORY; i++) {
+    const timeOffset = now - (MAX_HISTORY - 1 - i) * TICK_MS;
+    list.push(tick(timeOffset));
+  }
+  return list;
+}
+
 export function useTelemetryStream() {
-  const [current, setCurrent] = useState<TelemetryReading>(() => tick());
-  const [history, setHistory] = useState<readonly TelemetryReading[]>([]);
+  const [history, setHistory] = useState<readonly TelemetryReading[]>(() => generateInitialHistory());
+  const [current, setCurrent] = useState<TelemetryReading>(() => history[history.length - 1]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
