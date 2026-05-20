@@ -66,7 +66,7 @@ interface MiniChartProps {
   readonly color: string;
   readonly label: string;
   readonly unit: string;
-  readonly domain: [number, number];
+  readonly domain: any;
   readonly targetValue?: number;
   readonly gridColor: string;
   readonly axisColor: string;
@@ -160,7 +160,7 @@ function TelemetryMiniChart({
             strokeWidth={2}
             dot={false}
             activeDot={{ r: 3, strokeWidth: 1.5 }}
-            animationDuration={400}
+            animationDuration={200}
           />
         </AreaChart>
       </ResponsiveContainer>
@@ -220,7 +220,7 @@ export function HistoryPage() {
                 color={COLORS.temperature}
                 label="Temperature"
                 unit="°C"
-                domain={[20, 45]}
+                domain={["dataMin - 0.5", "dataMax + 0.5"]}
                 targetValue={37.5}
                 gridColor={gridColor}
                 axisColor={axisColor}
@@ -231,7 +231,7 @@ export function HistoryPage() {
                 color={COLORS.humidity}
                 label="Humidity"
                 unit="%"
-                domain={[25, 85]}
+                domain={["dataMin - 2.0", "dataMax + 2.0"]}
                 targetValue={55.0}
                 gridColor={gridColor}
                 axisColor={axisColor}

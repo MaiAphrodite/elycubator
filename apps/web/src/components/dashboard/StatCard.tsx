@@ -87,7 +87,7 @@ export function StatCard({
                     />
                   </linearGradient>
                 </defs>
-                <YAxis domain={sparklineDomain} hide />
+                <YAxis domain={["dataMin - 0.3", "dataMax + 0.3"]} hide />
                 <Area
                   type="monotone"
                   dataKey={sparklineKey}
