@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  caddy:
+    image: caddy:2.7-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - elycubator-net
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - elycubator-net
+
+  api:
+    image: ghcr.io/maiaphrodite/elycubator-api:latest
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-postgres}@db:5432/elycubator_db
+    restart: unless-stopped
+    networks:
+      - elycubator-net
+
+  web:
+    image: ghcr.io/maiaphrodite/elycubator-web:latest
+    restart: unless-stopped
+    networks:
+      - elycubator-net
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: elycubator_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - elycubator-net
+
+networks:
+  elycubator-net:
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

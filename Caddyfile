@@ -1,0 +1,18 @@
+:80 {
+  # Reverse proxy API requests to the Elysia container
+  handle_path /api/* {
+    reverse_proxy api:3000
+  }
+
+  # Route everything else to the Web SPA
+  handle {
+    reverse_proxy web:80
+  }
+
+  # Add basic security headers
+  header {
+    X-Content-Type-Options nosniff
+    X-Frame-Options DENY
+    Referrer-Policy no-referrer-when-downgrade
+  }
+}
