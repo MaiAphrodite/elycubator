@@ -2,34 +2,25 @@ import { Elysia, t } from 'elysia';
 import { prisma } from '../db';
 
 export const deviceRoutes = new Elysia({ prefix: '/api/device' })
-  /**
-   * Device Init / Beacon Endpoint
-   * Hit by the Wokwi ESP32 simulator once it connects to the internet.
-   * Registers the device if unknown, updates offline PIN for claiming.
-   */
   .post('/init', async ({ body }) => {
     const { macAddress, pairingPin } = body;
 
-    // Try to find the device
     const existing = await prisma.device.findUnique({
       where: { macAddress }
     });
 
     if (existing) {
       if (existing.isClaimed) {
-        return { success: true, claimed: true, message: "Device is already claimed." };
-      } else {
-        // Update the pairing PIN just in case it generated a new one
-        await prisma.device.update({
-          where: { macAddress },
-          data: { pairingCode: pairingPin }
-        });
-        return { success: true, claimed: false, message: "Device PIN updated." };
+        return { success: true, deviceId: existing.id, claimed: true, message: "Device is already claimed." };
       }
+      await prisma.device.update({
+        where: { macAddress },
+        data: { pairingCode: pairingPin }
+      });
+      return { success: true, deviceId: existing.id, claimed: false, message: "Device PIN updated." };
     }
 
-    // Register a new unclaimed device
-    await prisma.device.create({
+    const device = await prisma.device.create({
       data: {
         macAddress,
         pairingCode: pairingPin,
@@ -37,18 +28,14 @@ export const deviceRoutes = new Elysia({ prefix: '/api/device' })
       }
     });
 
-    return { success: true, claimed: false, message: "Device registered and awaiting claim." };
+    return { success: true, deviceId: device.id, claimed: false, message: "Device registered and awaiting claim." };
   }, {
     body: t.Object({
       macAddress: t.String(),
       pairingPin: t.String()
     })
   })
-  
-  /**
-   * Device Claim Endpoint
-   * Hit by the React Web SPA when a user claims the device.
-   */
+
   .post('/claim', async ({ body, set }) => {
     const { macAddress, pairingPin, nickname, userId } = body;
 
@@ -71,18 +58,16 @@ export const deviceRoutes = new Elysia({ prefix: '/api/device' })
       return { success: false, error: "Invalid Pairing PIN." };
     }
 
-    // Claim the device
     await prisma.device.update({
       where: { macAddress },
       data: {
         isClaimed: true,
-        pairingCode: null, // Clear the pin for security
+        pairingCode: null,
         nickname,
         userId
       }
     });
 
-    // Initialize default settings for this newly claimed incubator
     await prisma.settings.create({
       data: {
         deviceId: device.id,
@@ -97,6 +82,76 @@ export const deviceRoutes = new Elysia({ prefix: '/api/device' })
       macAddress: t.String(),
       pairingPin: t.String(),
       nickname: t.String(),
-      userId: t.String() // In a real app, this comes from the Auth token
+      userId: t.String()
     })
+  })
+
+  .get('/:deviceId/settings', async ({ params, set }) => {
+    const settings = await prisma.settings.findUnique({
+      where: { deviceId: params.deviceId }
+    });
+
+    if (!settings) {
+      set.status = 404;
+      return { success: false, error: "Settings not found for this device." };
+    }
+
+    return { success: true, data: settings };
+  }, {
+    params: t.Object({ deviceId: t.String() })
+  })
+
+  .put('/:deviceId/settings', async ({ params, body, set }) => {
+    const existing = await prisma.settings.findUnique({
+      where: { deviceId: params.deviceId }
+    });
+
+    if (!existing) {
+      set.status = 404;
+      return { success: false, error: "Settings not found for this device." };
+    }
+
+    const settings = await prisma.settings.update({
+      where: { deviceId: params.deviceId },
+      data: body,
+    });
+
+    return { success: true, data: settings };
+  }, {
+    params: t.Object({ deviceId: t.String() }),
+    body: t.Object({
+      targetTemp: t.Optional(t.Numeric()),
+      targetHumidity: t.Optional(t.Numeric()),
+      tempKp: t.Optional(t.Numeric()),
+      tempKi: t.Optional(t.Numeric()),
+      tempKd: t.Optional(t.Numeric()),
+      humidKp: t.Optional(t.Numeric()),
+      humidKi: t.Optional(t.Numeric()),
+      humidKd: t.Optional(t.Numeric()),
+      turnIntervalHrs: t.Optional(t.Numeric()),
+      turnAngle: t.Optional(t.Numeric()),
+      servoTrigger: t.Optional(t.Boolean()),
+      lampEnabled: t.Optional(t.Boolean()),
+      fanEnabled: t.Optional(t.Boolean()),
+    })
+  })
+
+  .post('/:deviceId/servo/trigger', async ({ params, set }) => {
+    const existing = await prisma.settings.findUnique({
+      where: { deviceId: params.deviceId }
+    });
+
+    if (!existing) {
+      set.status = 404;
+      return { success: false, error: "Settings not found." };
+    }
+
+    await prisma.settings.update({
+      where: { deviceId: params.deviceId },
+      data: { servoTrigger: true }
+    });
+
+    return { success: true, message: "Servo turn triggered." };
+  }, {
+    params: t.Object({ deviceId: t.String() })
   });

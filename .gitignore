@@ -19,3 +19,5 @@ temp_scripts/
 logs/
 *.log
 bun.lockb
+elycubator-src.tar.gz
+*.tar.gz

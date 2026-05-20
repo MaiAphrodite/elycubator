@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -18,15 +15,15 @@ model User {
 }
 
 model Device {
-  id          String   @id @default(uuid()) // Unique identifier from Elysia
-  macAddress  String   @unique // Hardware identifier from Wokwi/ESP32
-  pairingCode String?  @unique // 6-digit code for the user to claim
+  id          String   @id @default(uuid())
+  macAddress  String   @unique
+  pairingCode String?  @unique
   isClaimed   Boolean  @default(false)
-  
+
   nickname    String?
   userId      String?
   owner       User?    @relation(fields: [userId], references: [id])
-  
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -38,11 +35,25 @@ model Settings {
   id               String   @id @default(uuid())
   deviceId         String   @unique
   device           Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  
+
   targetTemp       Float    @default(37.5)
   targetHumidity   Float    @default(55.0)
-  estimatedHatch   DateTime? 
-  
+
+  tempKp           Float    @default(2.0)
+  tempKi           Float    @default(0.5)
+  tempKd           Float    @default(1.0)
+
+  humidKp          Float    @default(1.5)
+  humidKi          Float    @default(0.3)
+  humidKd          Float    @default(0.5)
+
+  turnIntervalHrs  Int      @default(4)
+  turnAngle        Int      @default(90)
+  servoTrigger     Boolean  @default(false)
+
+  lampEnabled      Boolean  @default(true)
+  fanEnabled       Boolean  @default(true)
+
   updatedAt        DateTime @updatedAt
 }
 
@@ -50,10 +61,13 @@ model Telemetry {
   id          String   @id @default(uuid())
   deviceId    String
   device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
-  
+
   temperature Float?
   humidity    Float?
-  o2Level     Float?
-  
+
+  lampDuty    Float?
+  fanDuty     Float?
+  servoAngle  Float?
+
   timestamp   DateTime @default(now())
 }
