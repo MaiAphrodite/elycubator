@@ -4,102 +4,125 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 
 const pool = new pg.Pool({
-  connectionString: "postgres://postgres:postgres@localhost:51214/template1",
+  connectionString:
+    process.env.DATABASE_URL ??
+    "postgres://postgres:postgres@localhost:51214/template1?sslmode=disable",
 });
 
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-const DEVICE_MAC = "AA:BB:CC:DD:EE:FF";
-const DEVICE_NICKNAME = "Incubator Alpha";
+const SEED_PASSWORD = "seed-password-123";
+const DEVICE_SECRET = process.env.DEVICE_SECRET ?? "dev-device-secret";
 
 async function seed() {
-  console.log("🌱 Seeding database...\n");
+  console.log("🌱 Seeding rich web demo data...\n");
 
+  const passwordHash = await Bun.password.hash(SEED_PASSWORD, {
+    algorithm: "argon2id",
+  });
+
+  // 1. Seed Main User
   const user = await prisma.user.upsert({
     where: { email: "mai@elycubator.local" },
-    update: {},
+    update: { passwordHash },
     create: {
       email: "mai@elycubator.local",
       name: "Mai",
+      passwordHash,
     },
   });
-  console.log(`👤 User: ${user.name} (${user.id})`);
+  console.log(`👤 User: ${user.name} (${user.email})`);
 
-  const device = await prisma.device.upsert({
-    where: { macAddress: DEVICE_MAC },
-    update: {
-      isClaimed: true,
-      nickname: DEVICE_NICKNAME,
-      userId: user.id,
-      pairingCode: null,
-    },
-    create: {
-      macAddress: DEVICE_MAC,
-      isClaimed: true,
-      nickname: DEVICE_NICKNAME,
-      userId: user.id,
-      pairingCode: null,
-    },
+  // --- DEVICE 1: Incubator Alpha (Stable, running perfectly) ---
+  const alphaMac = "AA:BB:CC:DD:EE:01";
+  const alpha = await prisma.device.upsert({
+    where: { macAddress: alphaMac },
+    update: { isClaimed: true, nickname: "Incubator Alpha", userId: user.id, pairingCode: null, deviceSecret: DEVICE_SECRET },
+    create: { macAddress: alphaMac, isClaimed: true, nickname: "Incubator Alpha", userId: user.id, pairingCode: null, deviceSecret: DEVICE_SECRET },
   });
-  console.log(`📦 Device: ${device.nickname} (${device.id})`);
-  console.log(`   MAC: ${device.macAddress}`);
-
-  const settings = await prisma.settings.upsert({
-    where: { deviceId: device.id },
+  
+  await prisma.settings.upsert({
+    where: { deviceId: alpha.id },
     update: {},
-    create: {
-      deviceId: device.id,
-      targetTemp: 37.5,
-      targetHumidity: 55.0,
-      tempKp: 2.0,
-      tempKi: 0.5,
-      tempKd: 1.0,
-      humidKp: 1.5,
-      humidKi: 0.3,
-      humidKd: 0.5,
-      turnIntervalHrs: 4,
-      turnAngle: 90,
-    },
+    create: { deviceId: alpha.id, targetTemp: 37.5, targetHumidity: 55.0, tempKp: 2.0, tempKi: 0.5, tempKd: 1.0, humidKp: 1.5, humidKi: 0.3, humidKd: 0.5, turnIntervalHrs: 4, turnAngle: 90 },
   });
-  console.log(`⚙ Settings: ${settings.id}`);
+  
+  await prisma.telemetry.deleteMany({ where: { deviceId: alpha.id } });
+  const alphaReadings = generateTelemetryHistory(alpha.id, 100, 37.5, 55.0);
+  await prisma.telemetry.createMany({ data: alphaReadings });
+  console.log(`✅ Seeded: ${alpha.nickname} (Stable profile, 100 readings)`);
 
-  await prisma.telemetry.deleteMany({ where: { deviceId: device.id } });
+  // --- DEVICE 2: Hatcher Beta (Running hot/humid, struggling to regulate) ---
+  const betaMac = "AA:BB:CC:DD:EE:02";
+  const beta = await prisma.device.upsert({
+    where: { macAddress: betaMac },
+    update: { isClaimed: true, nickname: "Hatcher Beta", userId: user.id, pairingCode: null, deviceSecret: DEVICE_SECRET },
+    create: { macAddress: betaMac, isClaimed: true, nickname: "Hatcher Beta", userId: user.id, pairingCode: null, deviceSecret: DEVICE_SECRET },
+  });
+  
+  await prisma.settings.upsert({
+    where: { deviceId: beta.id },
+    update: {},
+    create: { deviceId: beta.id, targetTemp: 36.8, targetHumidity: 70.0, tempKp: 1.0, tempKi: 0.1, tempKd: 0.5, humidKp: 1.0, humidKi: 0.1, humidKd: 0.2, turnIntervalHrs: 0, turnAngle: 0 },
+  });
+  
+  await prisma.telemetry.deleteMany({ where: { deviceId: beta.id } });
+  const betaReadings = generateTelemetryHistory(beta.id, 100, 38.2, 75.0, true); // Struggling profile
+  await prisma.telemetry.createMany({ data: betaReadings });
+  console.log(`🔥 Seeded: ${beta.nickname} (Struggling profile, 100 readings)`);
 
-  const readings = generateTelemetryHistory(device.id, 50);
-  await prisma.telemetry.createMany({ data: readings });
-  console.log(`📊 Telemetry: ${readings.length} historical readings seeded`);
+  // --- DEVICE 3: Offline Backup Unit (Claimed, but no recent telemetry) ---
+  const gammaMac = "AA:BB:CC:DD:EE:03";
+  const gamma = await prisma.device.upsert({
+    where: { macAddress: gammaMac },
+    update: { isClaimed: true, nickname: "Storage Unit", userId: user.id, pairingCode: null, deviceSecret: DEVICE_SECRET },
+    create: { macAddress: gammaMac, isClaimed: true, nickname: "Storage Unit", userId: user.id, pairingCode: null, deviceSecret: DEVICE_SECRET },
+  });
+  
+  await prisma.settings.upsert({
+    where: { deviceId: gamma.id },
+    update: {},
+    create: { deviceId: gamma.id, targetTemp: 25.0, targetHumidity: 50.0, tempKp: 2.0, tempKi: 0.5, tempKd: 1.0, humidKp: 1.5, humidKi: 0.3, humidKd: 0.5, turnIntervalHrs: 0, turnAngle: 0 },
+  });
+  await prisma.telemetry.deleteMany({ where: { deviceId: gamma.id } });
+  console.log(`💤 Seeded: ${gamma.nickname} (Offline, 0 readings)`);
 
-  console.log("\n✅ Seed complete!");
-  console.log(`\n   Device ID for simulator: ${device.id}`);
-  console.log(`   MAC Address: ${DEVICE_MAC}`);
+  // --- DEVICE 4: Unclaimed New Device (Waiting to be claimed) ---
+  const deltaMac = "AA:BB:CC:DD:EE:04";
+  const delta = await prisma.device.upsert({
+    where: { macAddress: deltaMac },
+    update: { isClaimed: false, nickname: null, userId: null, pairingCode: "123456", deviceSecret: DEVICE_SECRET },
+    create: { macAddress: deltaMac, isClaimed: false, nickname: null, userId: null, pairingCode: "123456", deviceSecret: DEVICE_SECRET },
+  });
+  await prisma.telemetry.deleteMany({ where: { deviceId: delta.id } });
+  console.log(`📦 Seeded: Unclaimed Device (MAC: ${delta.macAddress}, PIN: 123456)`);
+
+  console.log("\n🚀 Demo Seed complete!");
+  console.log(`Login: mai@elycubator.local / ${SEED_PASSWORD}`);
 }
 
-function generateTelemetryHistory(deviceId: string, count: number) {
+function generateTelemetryHistory(deviceId: string, count: number, targetTemp: number, targetHumid: number, isStruggling = false) {
   const now = Date.now();
-  let temp = 28.0;
-  let humidity = 70.0;
-  let lampDuty = 0;
-  let fanDuty = 0;
-
+  let temp = isStruggling ? targetTemp + 1.5 : targetTemp - 0.5;
+  let humidity = isStruggling ? targetHumid + 10.0 : targetHumid - 5.0;
+  
   const readings = [];
 
   for (let i = 0; i < count; i++) {
-    const tempError = 37.5 - temp;
-    lampDuty = Math.max(0, Math.min(100, tempError * 12 + (Math.random() - 0.5) * 6));
-    const humidError = humidity - 55.0;
-    fanDuty = Math.max(0, Math.min(100, humidError * 6 + (Math.random() - 0.5) * 6));
+    const noise = isStruggling ? (Math.random() - 0.5) * 1.5 : (Math.random() - 0.5) * 0.3;
+    
+    // Simple spring physics towards target
+    temp += (targetTemp - temp) * 0.1 + noise;
+    humidity += (targetHumid - humidity) * 0.1 + (noise * 2);
 
-    temp += (lampDuty / 100) * 0.4 * 2;
-    temp -= (fanDuty / 100) * 0.2 * 2;
-    temp += 0.04 * (28 - temp) * 2;
-    temp += (Math.random() - 0.5) * 0.5;
-    temp = Math.max(20, Math.min(45, temp));
+    let lampDuty = Math.max(0, Math.min(100, (targetTemp - temp) * 20));
+    let fanDuty = Math.max(0, Math.min(100, (humidity - targetHumid) * 10));
 
-    humidity -= (fanDuty / 100) * 1.2 * 2;
-    humidity += 0.02 * (70 - humidity) * 2;
-    humidity += (Math.random() - 0.5) * 2;
-    humidity = Math.max(25, Math.min(85, humidity));
+    if (isStruggling) {
+      lampDuty = Math.random() > 0.8 ? 100 : lampDuty;
+      fanDuty = 100; // Fans pinned at 100% trying to lower humidity
+    }
 
     readings.push({
       deviceId,
@@ -108,7 +131,7 @@ function generateTelemetryHistory(deviceId: string, count: number) {
       lampDuty: Number(lampDuty.toFixed(1)),
       fanDuty: Number(fanDuty.toFixed(1)),
       servoAngle: 0,
-      timestamp: new Date(now - (count - i) * 2000),
+      timestamp: new Date(now - (count - i) * 60000), // 1 reading per minute
     });
   }
 
@@ -121,3 +144,4 @@ seed()
     process.exit(1);
   })
   .finally(() => prisma.$disconnect());
+

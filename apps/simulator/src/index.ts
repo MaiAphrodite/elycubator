@@ -5,7 +5,6 @@ import {
   MAC_ADDRESS,
   PAIRING_PIN,
   TICK_INTERVAL_MS,
-  SETTINGS_POLL_INTERVAL_MS,
 } from "./config";
 
 interface DeviceSettings {
@@ -41,56 +40,97 @@ const DEFAULT_SETTINGS: DeviceSettings = {
 };
 
 let deviceId: string | null = null;
+let deviceToken: string | null = null;
 let settings: DeviceSettings = { ...DEFAULT_SETTINGS };
 let chamber: ChamberState = createInitialState();
+let ws: WebSocket | null = null;
 
 const tempPID = new PIDController(settings.tempKp, settings.tempKi, settings.tempKd);
 const humidPID = new PIDController(settings.humidKp, settings.humidKi, settings.humidKd);
 
-async function registerDevice(): Promise<string> {
+async function registerDevice(): Promise<void> {
   console.log(`📡 Registering device ${MAC_ADDRESS}...`);
+
+  // In a real device, DEVICE_SECRET is burned into firmware.
+  // For the simulator, we read it from the environment.
+  const secret = process.env.DEVICE_SECRET || "dev-device-secret";
+  
+  const text = `${MAC_ADDRESS}:${PAIRING_PIN}`;
+  
+  // Bun native crypto for HMAC
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  
+  const signatureBuffer = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(text)
+  );
+  
+  const hmacSignature = Buffer.from(signatureBuffer).toString("hex");
 
   const res = await fetch(`${API_BASE_URL}/api/device/init`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ macAddress: MAC_ADDRESS, pairingPin: PAIRING_PIN }),
+    body: JSON.stringify({ macAddress: MAC_ADDRESS, pairingPin: PAIRING_PIN, hmacSignature }),
   });
 
-  const data = await res.json() as { success: boolean; deviceId: string; claimed: boolean; message: string };
+  const data = await res.json() as { success: boolean; deviceId: string; deviceToken: string; claimed: boolean; message: string; error?: string };
 
   if (!data.success) {
-    throw new Error(`Device registration failed: ${JSON.stringify(data)}`);
+    throw new Error(`Device registration failed: ${data.error || JSON.stringify(data)}`);
   }
 
   console.log(`✅ Device registered: ${data.deviceId} (claimed: ${data.claimed})`);
-  return data.deviceId;
+  deviceId = data.deviceId;
+  deviceToken = data.deviceToken;
 }
 
-async function fetchSettings(): Promise<void> {
-  if (!deviceId) return;
+function connectWebSocket() {
+  if (!deviceToken) return;
 
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/device/${deviceId}/settings`);
-    const data = await res.json() as { success: boolean; data: DeviceSettings };
+  const wsUrl = API_BASE_URL.replace("http://", "ws://").replace("https://", "wss://");
+  ws = new WebSocket(`${wsUrl}/api/device/stream?token=${deviceToken}`);
 
-    if (data.success && data.data) {
-      settings = data.data;
+  ws.onopen = () => {
+    console.log("🔌 WebSocket Connected. Streaming telemetry...");
+  };
 
-      tempPID.updateGains(settings.tempKp, settings.tempKi, settings.tempKd);
-      humidPID.updateGains(settings.humidKp, settings.humidKi, settings.humidKd);
-
-      if (settings.servoTrigger) {
-        triggerServo();
-        await fetch(`${API_BASE_URL}/api/device/${deviceId}/settings`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ servoTrigger: false }),
-        });
+  ws.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.type === "SETTINGS_UPDATE" && msg.payload) {
+        console.log("📥 Received Settings Update:", msg.payload);
+        settings = { ...settings, ...msg.payload };
+        
+        tempPID.updateGains(settings.tempKp, settings.tempKi, settings.tempKd);
+        humidPID.updateGains(settings.humidKp, settings.humidKi, settings.humidKd);
+        
+        if (settings.servoTrigger) {
+          triggerServo();
+          // We clear the flag locally since the server already handled it.
+          settings.servoTrigger = false; 
+        }
       }
+    } catch (e) {
+      console.warn("Failed to parse WS message", e);
     }
-  } catch (err) {
-    console.warn("⚠ Failed to fetch settings:", (err as Error).message);
-  }
+  };
+
+  ws.onclose = () => {
+    console.log("❌ WebSocket Disconnected. Reconnecting in 5s...");
+    setTimeout(connectWebSocket, 5000);
+  };
+  
+  ws.onerror = (e) => {
+    console.error("⚠ WebSocket error", e);
+  };
 }
 
 function triggerServo(): void {
@@ -106,31 +146,13 @@ function triggerServo(): void {
 }
 
 function checkAutoTurn(): void {
+  if (settings.turnIntervalHrs <= 0) return;
   const intervalMs = settings.turnIntervalHrs * 3600 * 1000;
   const elapsed = Date.now() - chamber.lastTurnTime;
 
   if (elapsed >= intervalMs) {
     console.log("⏰ Auto egg turn triggered");
     triggerServo();
-  }
-}
-
-async function postTelemetry(): Promise<void> {
-  try {
-    await fetch(`${API_BASE_URL}/api/telemetry`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        macAddress: MAC_ADDRESS,
-        temperature: Number(chamber.temperature.toFixed(2)),
-        humidity: Number(chamber.humidity.toFixed(2)),
-        lampDuty: Number(chamber.lampDuty.toFixed(1)),
-        fanDuty: Number(chamber.fanDuty.toFixed(1)),
-        servoAngle: chamber.servoAngle,
-      }),
-    });
-  } catch (err) {
-    console.warn("⚠ Failed to post telemetry:", (err as Error).message);
   }
 }
 
@@ -162,7 +184,16 @@ function tick(): void {
     );
   }
 
-  postTelemetry();
+  // Stream over WebSocket instead of HTTP
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      temperature: Number(chamber.temperature.toFixed(2)),
+      humidity: Number(chamber.humidity.toFixed(2)),
+      lampDuty: Number(chamber.lampDuty.toFixed(1)),
+      fanDuty: Number(chamber.fanDuty.toFixed(1)),
+      servoAngle: chamber.servoAngle,
+    }));
+  }
 }
 
 async function main(): Promise<void> {
@@ -173,7 +204,7 @@ async function main(): Promise<void> {
   console.log("");
 
   try {
-    deviceId = await registerDevice();
+    await registerDevice();
   } catch (err) {
     console.error("❌ Cannot register device. Is the API running?");
     console.error((err as Error).message);
@@ -182,11 +213,9 @@ async function main(): Promise<void> {
     return;
   }
 
-  await fetchSettings();
+  connectWebSocket();
 
   setInterval(tick, TICK_INTERVAL_MS);
-
-  setInterval(fetchSettings, SETTINGS_POLL_INTERVAL_MS);
 
   console.log("🟢 Simulator running. Press Ctrl+C to stop.\n");
 }

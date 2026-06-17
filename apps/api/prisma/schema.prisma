@@ -7,28 +7,33 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String?
-  devices   Device[]
-  createdAt DateTime @default(now())
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  refreshToken String?
+  devices      Device[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Device {
-  id          String   @id @default(uuid())
-  macAddress  String   @unique
-  pairingCode String?  @unique
-  isClaimed   Boolean  @default(false)
+  id           String   @id @default(uuid())
+  macAddress   String   @unique
+  pairingCode  String?  @unique
+  isClaimed    Boolean  @default(false)
+  deviceSecret String
+  deviceToken  String?
 
-  nickname    String?
-  userId      String?
-  owner       User?    @relation(fields: [userId], references: [id])
+  nickname     String?
+  userId       String?
+  owner        User?    @relation(fields: [userId], references: [id])
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  telemetry   Telemetry[]
-  settings    Settings?
+  telemetry    Telemetry[]
+  settings     Settings?
 }
 
 model Settings {
@@ -71,3 +76,4 @@ model Telemetry {
 
   timestamp   DateTime @default(now())
 }
+

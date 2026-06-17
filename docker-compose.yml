@@ -28,6 +28,11 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-postgres}@db:5432/elycubator_db
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-15m}
+      - REFRESH_TOKEN_EXPIRES_IN=${REFRESH_TOKEN_EXPIRES_IN:-7d}
+      - DEVICE_TOKEN_EXPIRES_IN=${DEVICE_TOKEN_EXPIRES_IN:-30d}
+      - DEVICE_SECRET=${DEVICE_SECRET}
     restart: unless-stopped
     networks:
       - elycubator-net

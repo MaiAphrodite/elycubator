@@ -64,3 +64,33 @@
 **Trade-offs**:
 - Requires managing a Cloudflare Tunnel Token.
 - Provides Enterprise-grade DDoS protection, SSL termination at the edge, and perfectly isolates the API/DB from the public internet.
+
+## [2026-05-22] Observability and Infrastructure Monitoring
+**Status**: Decided
+**Context**: A droplet outage at `137.184.21.113` was misdiagnosed as an "Nginx failure" despite the architecture running Caddy + Cloudflare Tunnels. The outage was discovered manually rather than through automated alerting, and SSH connectivity was completely severed.
+**Decision**: 
+- Implement external uptime monitoring (e.g., Uptime Kuma, BetterStack) to monitor the Cloudflare tunnel endpoints.
+- Stop relying on manual SSH for primary health checks.
+**Trade-offs**:
+- Requires setting up and maintaining a separate monitoring service.
+- Drastically reduces MTTR (Mean Time To Recovery) and prevents architectural amnesia during panic scenarios.
+
+## [2026-06-17] Dual-Layer Authentication & Identity Verification
+**Status**: Decided
+**Context**: The initial API had no authentication. The User model lacked a password, and devices could be claimed by passing a raw `userId`. Furthermore, devices identified themselves via MAC address, opening the door for spoofing.
+**Decision**: 
+1. **User Authentication**: Implemented standard JWT with Argon2id password hashing (`Bun.password`). Short-lived access tokens (15m) are returned to the client, while a long-lived refresh token (7d) is stored in a secure `httpOnly` cookie to prevent XSS exfiltration.
+2. **Device Identity**: Devices now share a pre-provisioned symmetric key (`DEVICE_SECRET`). On boot, the ESP32 computes an HMAC-SHA256 signature of its MAC and Pairing PIN to prove identity to the `/init` endpoint. The server responds with a long-lived (30d) JWT Device Token.
+3. **Middleware Isolation**: Created distinct `requireUser` and `requireDevice` middlewares with strongly typed payloads (`{ type: "user" | "device" }`) so device tokens can never access user data and vice versa.
+**Trade-offs**:
+- Requires managing device secrets. In production, each device must have a unique secret flashed at factory time. For current local dev/simulator, a single global `DEVICE_SECRET` is used.
+- Refresh tokens are stored in the database as hashes. This means rotating the refresh token invalidates all sessions for that user simultaneously (since we only store one hash per user currently), which is acceptable for MVP but may need a 1-to-many Session table for multi-device login support later.
+
+## [2026-06-17] Native WebSockets vs MQTT for Real-Time IoT
+**Status**: Decided
+**Context**: An IoT API needs to continuously ingest telemetry and push settings changes down to devices. Traditional HTTP REST relies on heavy polling which drains ESP32 battery life, wastes bandwidth, and creates high latency for user commands. A standard solution is an MQTT broker (e.g. Mosquitto), but this introduces significant infrastructure complexity and duplicates auth logic.
+**Decision**: Adopt Native WebSockets (`elysia/ws`) built directly into the Elysia backend API. Devices authenticate once over WS using their JWT, then maintain a persistent bidirectional connection. The API maintains a central memory map of connected sockets. REST endpoints (`/api/device/:id/settings`) trigger an immediate push down the correct socket.
+**Trade-offs**:
+- Requires ESP32 firmware to support WebSockets (standard via `WebSocketsClient`).
+- WebSockets are strictly bound to the specific API server process maintaining the TCP socket. If we scale horizontally to multiple API containers, we will need a Redis PubSub backplane to route push messages to the correct container. Since we are targeting a single monolithic instance currently, this in-memory Map approach is highly optimized and perfectly acceptable.
+- Eliminates the need to configure, deploy, or secure a standalone MQTT broker.
