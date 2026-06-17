@@ -15,8 +15,10 @@ import {
   IconLayoutDashboard,
   IconHistory,
   IconSettings,
+  IconLogout,
 } from "@tabler/icons-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 
 interface AppLayoutProps {
   readonly children: ReactNode;
@@ -32,6 +34,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const isMobile = useMediaQuery("(max-width: 48em)");
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   return (
     <AppShell
@@ -59,14 +62,24 @@ export function AppLayout({ children }: AppLayoutProps) {
             </Title>
           </Group>
 
-          <Badge
-            variant="dot"
-            color="green"
-            size="sm"
-            radius="xl"
-          >
-            Online
-          </Badge>
+          <Group gap="sm">
+            {user && (
+              <Text size="sm" fw={500} visibleFrom="sm">
+                Hi, {user.name}
+              </Text>
+            )}
+            <Badge
+              variant="dot"
+              color="green"
+              size="sm"
+              radius="xl"
+            >
+              Online
+            </Badge>
+            <UnstyledButton onClick={logout} style={{ display: 'flex', alignItems: 'center' }}>
+              <IconLogout size={20} stroke={1.5} color="var(--mantine-color-red-6)" />
+            </UnstyledButton>
+          </Group>
         </Group>
       </AppShell.Header>
 

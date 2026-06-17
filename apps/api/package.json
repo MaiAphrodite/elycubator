@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@elysiajs/cookie": "^0.8.0",
+    "@elysiajs/cors": "^1.4.2",
     "@elysiajs/jwt": "^1.4.2",
     "@elysiajs/websocket": "^0.2.8",
     "@prisma/adapter-pg": "^7.8.0",
