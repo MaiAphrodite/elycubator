@@ -34,7 +34,6 @@ export function StatCard({
   color,
   sparklineData,
   sparklineKey,
-  sparklineDomain,
 }: StatCardProps) {
   const strokeColor = SPARK_COLORS[color] ?? SPARK_COLORS.teal;
 
