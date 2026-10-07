@@ -55,30 +55,3 @@ jobs:
           push: true
           tags: ghcr.io/${{ env.REPO_OWNER }}/elycubator-api:latest
 
-  deploy-dev:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Copy deployment files to Dev Server
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: 137.184.21.113
-          username: root
-          password: ${{ secrets.DEV_SERVER_PASSWORD }}
-          source: "docker-compose.yml,Caddyfile"
-          target: "/opt/elycubator/"
-
-      - name: Deploy to Dev Server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: 137.184.21.113
-          username: root
-          password: ${{ secrets.DEV_SERVER_PASSWORD }}
-          script: |
-            # Pull the new images
-            cd /opt/elycubator
-            docker compose pull
-            
-            # Restart the services
-            docker compose up -d --remove-orphans

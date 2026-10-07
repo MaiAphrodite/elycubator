@@ -94,3 +94,11 @@
 - Requires ESP32 firmware to support WebSockets (standard via `WebSocketsClient`).
 - WebSockets are strictly bound to the specific API server process maintaining the TCP socket. If we scale horizontally to multiple API containers, we will need a Redis PubSub backplane to route push messages to the correct container. Since we are targeting a single monolithic instance currently, this in-memory Map approach is highly optimized and perfectly acceptable.
 - Eliminates the need to configure, deploy, or secure a standalone MQTT broker.
+
+## [2026-10-07] Remove dead dev-server deploy job
+
+**Context**: The Hetzner dev server at `137.184.21.113` has been dead for months, causing the `deploy-dev` job (scp + ssh via appleboy actions) to fail every run. Secrets were also wiped.
+
+**Decision**: Deleted the `deploy-dev` job from `ci.yml`. CI now stops at build + push to GHCR. Deployment is local: `docker compose pull && docker compose up -d` (already documented in README).
+
+**Consequences**: No automated remote deployment. Re-add a hardened deploy target (SSH keys, non-root user) only if a live server returns.
