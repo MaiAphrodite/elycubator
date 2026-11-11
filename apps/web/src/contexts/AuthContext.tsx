@@ -1,5 +1,13 @@
-import { createContext, useContext, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { useNavigate } from "react-router-dom";
+import { apiFetch as request, clearSession, getAccessToken } from "../lib/api";
 
 interface User {
   id: string;
@@ -18,7 +26,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(localStorage.getItem("token"));
+  const [token, setToken] = useState<string | null>(() => getAccessToken());
   const [user, setUser] = useState<User | null>(() => {
     const savedUser = localStorage.getItem("user");
     return savedUser ? JSON.parse(savedUser) : null;
@@ -26,40 +34,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const navigate = useNavigate();
 
-  const login = (newToken: string, newUser: User) => {
-    setToken(newToken);
-    setUser(newUser);
+  const login = useCallback((newToken: string, newUser: User) => {
     localStorage.setItem("token", newToken);
     localStorage.setItem("user", JSON.stringify(newUser));
-  };
+    setToken(newToken);
+    setUser(newUser);
+  }, []);
 
-  const logout = () => {
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    navigate("/login");
-  };
+  const logout = useCallback(() => {
+    const current = getAccessToken();
+    fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+      headers: current ? { Authorization: `Bearer ${current}` } : {},
+    }).catch(() => {});
+    clearSession();
+  }, []);
 
-  // Helper for authenticated API calls
-  const apiFetch = async (url: string, options: RequestInit = {}) => {
-    const headers = new Headers(options.headers || {});
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
+  useEffect(() => {
+    const onExpired = () => {
+      setToken(null);
+      setUser(null);
+      navigate("/login", { replace: true });
+    };
+    const onToken = (event: Event) => {
+      const next = (event as CustomEvent<string>).detail;
+      if (next) setToken(next);
+    };
+    window.addEventListener("auth:expired", onExpired);
+    window.addEventListener("auth:token", onToken);
+    return () => {
+      window.removeEventListener("auth:expired", onExpired);
+      window.removeEventListener("auth:token", onToken);
+    };
+  }, [navigate]);
 
-    const response = await fetch(url, { ...options, headers });
-
-    // Handle global 401 Unauthorized
-    if (response.status === 401) {
-      logout();
-    }
-
-    return response;
-  };
+  useEffect(() => {
+    if (!getAccessToken()) return;
+    let cancelled = false;
+    request("/api/auth/me")
+      .then(async (res) => {
+        if (cancelled) return;
+        if (!res.ok) {
+          clearSession();
+          return;
+        }
+        const body = await res.json().catch(() => null);
+        if (body?.data) {
+          const fresh: User = {
+            id: body.data.id,
+            email: body.data.email,
+            name: body.data.name ?? "",
+          };
+          localStorage.setItem("user", JSON.stringify(fresh));
+          setUser(fresh);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
-    <AuthContext.Provider value={{ token, user, login, logout, apiFetch }}>
+    <AuthContext.Provider value={{ token, user, login, logout, apiFetch: request }}>
       {children}
     </AuthContext.Provider>
   );

@@ -28,7 +28,7 @@ Elycubator is built on a modern TypeScript/Bun stack organized as a monorepo:
 
 | Component | Path | Technology | Role |
 |-----------|------|------------|------|
-| Backend API | `apps/api` | ElysiaJS + Bun | REST provisioning, WebSocket multiplexing, Prisma ORM |
+| Backend API | `apps/api-legacy` | ElysiaJS + Bun | REST provisioning, WebSocket multiplexing, Prisma ORM |
 | Web Dashboard | `apps/web` | React + Vite + Mantine | Real-time visualization, settings management |
 | Hardware Simulator | `apps/simulator` | Bun (native WebSocket client) | Simulates ESP32 telemetry streams |
 | Database | docker `db` service | PostgreSQL 15 | Persistent storage for users, devices, telemetry |
@@ -620,18 +620,25 @@ If authentication fails during the handshake, the server sends an error and clos
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and configure all values before running.
+Copy `.env.example` to `.env` and configure all values before running. The deployment runbook is in [`DEPLOY.md`](DEPLOY.md).
+
+The current Go service stores everything in SQLite (`DB_PATH`). The Postgres variables below were part of the legacy Node stack and are not read by `apps/api-go`.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DB_PASSWORD` | Yes | `postgres` | PostgreSQL password |
-| `DATABASE_URL` | Yes (API) | Composed from `DB_PASSWORD` | Full Postgres connection string |
+| `APP_ENV` | No | `development` | `production` refuses to start with missing, default, or short secrets |
+| `PORT` | No | `3000` | HTTP listen port |
+| `DB_PATH` | No | `elycubator.db` | SQLite file path. Containers use `/data/elycubator.db` |
+| `WEB_DIST` | No | `../web/dist` | SPA assets directory baked into the image |
+| `REGISTRATION_ENABLED` | No | `true` | `false` disables `POST /api/auth/register` |
+| `TELEMETRY_RETENTION_DAYS` | No | `30` | Older telemetry is pruned hourly. `0` disables pruning |
+| `CORS_ORIGINS` | No | empty | Comma separated extra origins. The same-origin SPA needs none |
 | `JWT_SECRET` | Yes | - | HMAC signing key for JWTs. Generate with `openssl rand -hex 64` |
 | `JWT_EXPIRES_IN` | No | `15m` | Access token lifetime (e.g. `15m`, `1h`) |
-| `REFRESH_TOKEN_EXPIRES_IN` | No | `7d` | Refresh token lifetime |
-| `DEVICE_TOKEN_EXPIRES_IN` | No | `30d` | Device session token lifetime |
+| `REFRESH_TOKEN_EXPIRES_IN` | No | `168h` | Refresh token lifetime, rotated on every refresh |
+| `DEVICE_TOKEN_EXPIRES_IN` | No | `720h` | Device session token lifetime |
 | `DEVICE_SECRET` | Yes | - | Shared HMAC secret for device verification. In production, each device gets a unique secret burned at factory time |
-| `CLOUDFLARE_TUNNEL_TOKEN` | No | - | Only needed if using Cloudflare Tunnel for ingress |
+| `CLOUDFLARE_TUNNEL_TOKEN` | No | - | Legacy ingress option, unused by the current stack |
 
 ---
 
@@ -658,7 +665,7 @@ cp .env.example .env
 docker-compose up db -d
 
 # Generate Prisma client and push schema
-cd apps/api
+cd apps/api-legacy
 bunx prisma generate
 bunx prisma db push
 
@@ -682,7 +689,7 @@ Open three terminals:
 
 ```bash
 # Terminal 1: API server (port 3000)
-cd apps/api
+cd apps/api-legacy
 bun run dev
 
 # Terminal 2: Web UI (port 5173)
@@ -734,7 +741,7 @@ docker-compose -p elycubator -f docker-compose.yml -f <(cat <<EOF
 version: '3.8'
 services:
   api:
-    build: ./apps/api
+    build: ./apps/api-legacy
   web:
     build: ./apps/web
 EOF

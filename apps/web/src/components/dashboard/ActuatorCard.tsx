@@ -77,9 +77,14 @@ function ActuatorRow({
           <Text size="sm" fw={600}>
             {label}
           </Text>
-          <Text size="xs" ff="monospace" fw={600} c={enabled ? color : "dimmed"}>
-            {displayDuty}%
-          </Text>
+          <Group gap={6} wrap="nowrap">
+            <Badge size="xs" variant="light" color={enabled ? color : "gray"}>
+              {enabled ? "ON" : "OFF"}
+            </Badge>
+            <Text size="xs" ff="monospace" fw={600} c={enabled ? color : "dimmed"}>
+              {displayDuty}%
+            </Text>
+          </Group>
         </Group>
         <Progress
           value={displayDuty}
@@ -172,6 +177,9 @@ export function ActuatorCard({
             <Text size="xs" ff="monospace" c="dimmed">
               {servoAngle}°
             </Text>
+            <Badge size="xs" variant="light" color={servoAngle > 0 ? "green" : "gray"}>
+              {servoAngle > 0 ? "RUN" : "IDLE"}
+            </Badge>
           </Group>
           <ActionIcon
             variant="light"

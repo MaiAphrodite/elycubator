@@ -34,24 +34,31 @@ jobs:
       - name: Lowercase repository owner
         run: echo "REPO_OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> ${GITHUB_ENV}
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache-dependency-path: apps/api-go/go.sum
+
+      - name: Go vet and test
+        working-directory: apps/api-go
+        run: |
+          go vet ./...
+          go test ./...
+
       - name: Build and Test Frontend
         run: |
           cd apps/web
           bun run build
 
-      - name: Build and Push Frontend Docker Image
+      - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: apps/web/Dockerfile
+          file: Dockerfile
           push: true
-          tags: ghcr.io/${{ env.REPO_OWNER }}/elycubator-web:latest
+          tags: |
+            ghcr.io/${{ env.REPO_OWNER }}/elycubator:latest
+            ghcr.io/${{ env.REPO_OWNER }}/elycubator:${{ github.sha }}
 
-      - name: Build and Push Backend Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: apps/api/Dockerfile
-          push: true
-          tags: ghcr.io/${{ env.REPO_OWNER }}/elycubator-api:latest
 

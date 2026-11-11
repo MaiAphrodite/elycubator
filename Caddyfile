@@ -1,18 +1,13 @@
-:80 {
-  # Reverse proxy API requests to the Elysia container
-  handle_path /api/* {
-    reverse_proxy api:3000
-  }
+{$SITE_ADDRESS} {
+    encode zstd gzip
 
-  # Route everything else to the Web SPA
-  handle {
-    reverse_proxy web:80
-  }
+    reverse_proxy app:3000 {
+        health_uri /api/health
+        health_interval 30s
+        health_timeout 5s
+    }
 
-  # Add basic security headers
-  header {
-    X-Content-Type-Options nosniff
-    X-Frame-Options DENY
-    Referrer-Policy no-referrer-when-downgrade
-  }
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    }
 }

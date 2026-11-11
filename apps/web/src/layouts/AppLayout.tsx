@@ -14,6 +14,7 @@ import {
   IconEgg,
   IconLayoutDashboard,
   IconHistory,
+  IconDevices,
   IconSettings,
   IconLogout,
 } from "@tabler/icons-react";
@@ -27,6 +28,7 @@ interface AppLayoutProps {
 const NAV_ITEMS = [
   { label: "Dashboard", icon: IconLayoutDashboard, path: "/" },
   { label: "History", icon: IconHistory, path: "/history" },
+  { label: "Devices", icon: IconDevices, path: "/devices" },
   { label: "Settings", icon: IconSettings, path: "/settings" },
 ] as const;
 

@@ -105,6 +105,18 @@ function connectWebSocket() {
   ws.onmessage = (event) => {
     try {
       const msg = JSON.parse(event.data);
+      if (msg.type === "CONTROL" && msg.payload) {
+        const c = msg.payload;
+        console.log("🎛️ CONTROL:", c);
+        settings.targetTemp = c.target_suhu ?? settings.targetTemp;
+        tempPID.updateGains(c.kp ?? settings.tempKp, c.ki ?? settings.tempKi, c.kd ?? settings.tempKd);
+        settings.tempKp = c.kp ?? settings.tempKp;
+        settings.tempKi = c.ki ?? settings.tempKi;
+        settings.tempKd = c.kd ?? settings.tempKd;
+        if (c.turner_test === 1) {
+          triggerServo();
+        }
+      }
       if (msg.type === "SETTINGS_UPDATE" && msg.payload) {
         console.log("📥 Received Settings Update:", msg.payload);
         settings = { ...settings, ...msg.payload };

@@ -13,8 +13,9 @@ import {
   IconTemperature,
 } from "@tabler/icons-react";
 import { motion } from "framer-motion";
-import { StatCard, ActuatorCard } from "../components/dashboard";
+import { StatCard, ActuatorCard, IncubationDayCard } from "../components/dashboard";
 import { useTelemetryStream } from "../hooks/useTelemetryStream";
+import { useIncubation } from "../hooks/useIncubation";
 
 const stagger = {
   hidden: { opacity: 0 },
@@ -32,6 +33,7 @@ export function DashboardPage() {
     triggerServo,
     exportAsCsv,
   } = useTelemetryStream();
+  const { incubation } = useIncubation();
 
   return (
     <motion.div variants={stagger} initial="hidden" animate="show">
@@ -62,11 +64,11 @@ export function DashboardPage() {
           </ActionIcon>
         </Group>
 
-        <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
           <StatCard
             label="Temperature"
             value={`${current.temperature.toFixed(1)}°C`}
-            subtitle="Target: 37.5°C"
+            subtitle={`Target: ${(incubation?.target_suhu ?? 37.5).toFixed(1)}°C`}
             icon={<IconTemperature size={18} stroke={1.5} />}
             color="teal"
             sparklineData={history}
@@ -82,6 +84,10 @@ export function DashboardPage() {
             sparklineData={history}
             sparklineKey="humidity"
             sparklineDomain={[25, 85]}
+          />
+          <IncubationDayCard
+            hariKe={incubation?.hari_ke ?? 0}
+            modeAuto={incubation?.mode_auto ?? 0}
           />
         </SimpleGrid>
 

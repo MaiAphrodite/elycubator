@@ -1,197 +1,252 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import type { TelemetryReading } from "../types/telemetry";
+import { apiFetch, getAccessToken, refreshSession } from "../lib/api";
 
 const MAX_HISTORY = 50;
-const TICK_MS = 1000; // 1-second comfortable visual interval for clear chart tracking
+const API_BASE = import.meta.env.VITE_API_URL ?? "";
+const WS_BASE = API_BASE
+  ? API_BASE.replace(/^http/, "ws")
+  : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}`;
 
-const AMBIENT_TEMP = 28.0;
-const AMBIENT_HUMIDITY = 70.0;
-const TARGET_TEMP = 37.5;
-const TARGET_HUMIDITY = 55.0;
-
-// High-inertia physics for natural "fighter-jet" instability and gorgeous oscillations
-const LAMP_HEAT_RATE = 2.4;         // High heat potential
-const FAN_COOL_RATE = 1.6;          // Strong cooling draft
-const FAN_DRY_RATE = 5.5;           // Dries humidity quickly
-const THERMAL_LEAK_RATE = 0.12;      // Constant heat loss draft
-const HUMIDITY_LEAK_RATE = 0.08;    // Constant humidity draft
-
-const DHT22_TEMP_NOISE = 0.08;
-const DHT22_HUMID_NOISE = 0.3;
-
-const FAULT_CHANCE = 0.015;
-const FAULT_DURATION_MS = 3000;
-
-interface SimState {
-  temperature: number;
-  humidity: number;
-  lampDuty: number;
-  fanDuty: number;
-  servoAngle: number;
-  lampEnabled: boolean;
-  fanEnabled: boolean;
-  faultUntil: number;
-  
-  // Thermal & Speed Inertia (creates the phase-lag delay essential for unstable oscillations)
-  lampThermalInertia: number;
-  fanSpeedInertia: number;
-}
-
-const sim: SimState = {
-  temperature: AMBIENT_TEMP,
-  humidity: AMBIENT_HUMIDITY,
-  lampDuty: 0,
-  fanDuty: 0,
-  servoAngle: 0,
-  lampEnabled: true,
-  fanEnabled: true,
-  faultUntil: 0,
-  lampThermalInertia: 0,
-  fanSpeedInertia: 0,
-};
-
-function clamp(val: number, lo: number, hi: number): number {
-  return Math.min(Math.max(val, lo), hi);
-}
-
-function noise(amp: number): number {
-  return (Math.random() - 0.5) * 2 * amp;
-}
-
-function tick(targetTimeMs?: number): TelemetryReading {
-  const dt = TICK_MS / 1000;
-  const now = targetTimeMs ?? Date.now();
-
-  // Slow ambient drift
-  const timeSec = now / 1000;
-  const activeAmbientTemp = AMBIENT_TEMP + Math.sin(timeSec / 45) * 1.5;
-  const activeAmbientHumid = AMBIENT_HUMIDITY + Math.cos(timeSec / 35) * 4.0;
-
-  // 1. Under-damped, highly aggressive Proportional feedback
-  const tempError = TARGET_TEMP - sim.temperature;
-  let lampDuty = clamp(tempError * 28 + noise(2), 0, 100); 
-
-  const humidError = sim.humidity - TARGET_HUMIDITY;
-  let fanDuty = clamp(humidError * 16 + noise(2), 0, 100);
-
-  // Active cross-coupling: if temp shoots too high, fan over-corrects aggressively
-  if (sim.temperature > TARGET_TEMP + 0.15) {
-    fanDuty = Math.max(fanDuty, 45 + (sim.temperature - TARGET_TEMP) * 40);
-  }
-
-  if (!sim.lampEnabled) lampDuty = 0;
-  if (!sim.fanEnabled) fanDuty = 0;
-
-  sim.lampDuty = clamp(lampDuty, 0, 100);
-  sim.fanDuty = clamp(fanDuty, 0, 100);
-
-  // 2. Physics Inertia / Phase Lag (Heater takes time to warm up/cool down, creating dynamic overshoots)
-  sim.lampThermalInertia += (sim.lampDuty - sim.lampThermalInertia) * 0.35 * dt;
-  sim.fanSpeedInertia += (sim.fanDuty - sim.fanSpeedInertia) * 0.45 * dt;
-
-  // Apply thermal updates based on inertia
-  sim.temperature += (sim.lampThermalInertia / 100) * LAMP_HEAT_RATE * dt;
-  sim.temperature -= (sim.fanSpeedInertia / 100) * FAN_COOL_RATE * dt;
-  sim.temperature += THERMAL_LEAK_RATE * (activeAmbientTemp - sim.temperature) * dt;
-
-  // 3. Rhythmic Competing Dynamics (Fan introduces wet/dry drafts, Lamp dries chamber rapidly)
-  sim.humidity -= (sim.fanSpeedInertia / 100) * FAN_DRY_RATE * dt;
-  sim.humidity += HUMIDITY_LEAK_RATE * (activeAmbientHumid - sim.humidity) * dt;
-
-  // Lamp convection drying effect
-  if (sim.lampThermalInertia > 5) {
-    sim.humidity -= 0.65 * (sim.lampThermalInertia / 100) * dt;
-  }
-
-  // Snappy fault events
-  if (!targetTimeMs && now > sim.faultUntil && Math.random() < FAULT_CHANCE) {
-    sim.faultUntil = now + FAULT_DURATION_MS;
-  }
-
-  if (now < sim.faultUntil) {
-    sim.temperature += noise(1.5);
-    sim.humidity += noise(3.0);
-  }
-
-  sim.temperature += noise(DHT22_TEMP_NOISE);
-  sim.humidity += noise(DHT22_HUMID_NOISE);
-
-  sim.temperature = clamp(sim.temperature, 15, 50);
-  sim.humidity = clamp(sim.humidity, 10, 95);
-
-  const readingTime = new Date(now);
-
-  return {
-    time: readingTime.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    }),
-    temperature: sim.temperature,
-    humidity: sim.humidity,
-    lampDuty: sim.lampDuty,
-    fanDuty: sim.fanDuty,
-    servoAngle: sim.servoAngle,
+interface LiveMessage {
+  type?: string;
+  deviceId?: string;
+  data?: {
+    temperature: number;
+    humidity: number;
+    lampDuty: number;
+    fanDuty: number;
+    servoAngle: number;
   };
 }
 
-// Warm up from ambient to generate a beautiful, oscillating startup history curve
-function generateInitialHistory(): TelemetryReading[] {
-  const list: TelemetryReading[] = [];
-  const now = Date.now();
-  
-  sim.temperature = AMBIENT_TEMP;
-  sim.humidity = AMBIENT_HUMIDITY;
-  sim.lampDuty = 0;
-  sim.fanDuty = 0;
-  sim.lampThermalInertia = 0;
-  sim.fanSpeedInertia = 0;
+interface TelemetryState {
+  current: TelemetryReading;
+  history: readonly TelemetryReading[];
+  deviceId: string | null;
+  lampEnabled: boolean;
+  fanEnabled: boolean;
+}
 
-  for (let i = 0; i < MAX_HISTORY; i++) {
-    const timeOffset = now - (MAX_HISTORY - 1 - i) * TICK_MS;
-    list.push(tick(timeOffset));
+const EMPTY: TelemetryState = {
+  current: {
+    time: "--:--:--",
+    temperature: 0,
+    humidity: 0,
+    lampDuty: 0,
+    fanDuty: 0,
+    servoAngle: 0,
+  },
+  history: [],
+  deviceId: null,
+  lampEnabled: true,
+  fanEnabled: true,
+};
+
+let state: TelemetryState = EMPTY;
+let listeners = new Set<() => void>();
+let socket: WebSocket | null = null;
+let subscribers = 0;
+let seededDevice: string | null = null;
+let seededSettings: string | null = null;
+let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectDelay = 2000;
+let intentionalClose = false;
+
+function emit() {
+  for (const l of listeners) l();
+}
+
+function setState(patch: Partial<TelemetryState>) {
+  state = { ...state, ...patch };
+  emit();
+}
+
+function seedSettings(deviceId: string) {
+  if (seededSettings === deviceId) return;
+  seededSettings = deviceId;
+  apiFetch(`/api/device/${deviceId}/settings`)
+    .then((r) => r.json())
+    .then((json) => {
+      if (!json?.success || !json.data) return;
+      const s = json.data;
+      setState({
+        lampEnabled: Boolean(s.LampEnabled ?? s.lampEnabled ?? false),
+        fanEnabled: Boolean(s.FanEnabled ?? s.fanEnabled ?? false),
+      });
+    })
+    .catch(() => {});
+}
+
+function seedHistory(deviceId: string) {
+  if (seededDevice === deviceId) return;
+  seededDevice = deviceId;
+  apiFetch(`/api/telemetry/history/${deviceId}?limit=${MAX_HISTORY}`)
+    .then((r) => r.json())
+    .then((json) => {
+      if (!json?.success || !Array.isArray(json.data)) return;
+      const seeded: TelemetryReading[] = json.data.map((row: any) => ({
+        time: new Date(row.timestamp).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }),
+        temperature: row.temperature ?? 0,
+        humidity: row.humidity ?? 0,
+        lampDuty: row.lampDuty ?? 0,
+        fanDuty: row.fanDuty ?? 0,
+        servoAngle: row.servoAngle ?? 0,
+      }));
+      const patch: Partial<TelemetryState> = { history: seeded };
+      if (seeded.length > 0) patch.current = seeded[seeded.length - 1];
+      setState(patch);
+    })
+    .catch(() => {});
+}
+
+function connect() {
+  if (socket) return;
+  const token = getAccessToken();
+  if (!token) return;
+
+  intentionalClose = false;
+  const ws = new WebSocket(`${WS_BASE}/api/device/live?token=${encodeURIComponent(token)}`);
+  socket = ws;
+
+  ws.onopen = () => {
+    reconnectDelay = 2000;
+  };
+
+  ws.onmessage = (event) => {
+    let msg: LiveMessage;
+    try {
+      msg = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    if (msg.type !== "TELEMETRY" || !msg.data) return;
+
+    const patch: Partial<TelemetryState> = {};
+    if (msg.deviceId) {
+      patch.deviceId = msg.deviceId;
+      seedHistory(msg.deviceId);
+      seedSettings(msg.deviceId);
+    }
+
+    const reading: TelemetryReading = {
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      }),
+      ...msg.data,
+    };
+    patch.current = reading;
+    const next = [...state.history, reading];
+    patch.history = next.length > MAX_HISTORY ? next.slice(next.length - MAX_HISTORY) : next;
+    setState(patch);
+  };
+
+  ws.onclose = () => {
+    if (socket === ws) socket = null;
+    if (!intentionalClose) scheduleReconnect();
+  };
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer || subscribers === 0) return;
+  reconnectTimer = setTimeout(async () => {
+    reconnectTimer = null;
+    if (subscribers === 0) return;
+    await refreshSession();
+    connect();
+  }, reconnectDelay);
+  reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+}
+
+function disconnect() {
+  intentionalClose = true;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
   }
-  return list;
+  socket?.close();
+  socket = null;
+}
+
+function scheduleDisconnect() {
+  if (disconnectTimer) return;
+  disconnectTimer = setTimeout(() => {
+    disconnectTimer = null;
+    if (subscribers === 0) disconnect();
+  }, 500);
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  if (disconnectTimer) {
+    clearTimeout(disconnectTimer);
+    disconnectTimer = null;
+  }
+  if (subscribers === 0) connect();
+  subscribers += 1;
+  return () => {
+    listeners.delete(listener);
+    subscribers -= 1;
+    if (subscribers === 0) scheduleDisconnect();
+  };
+}
+
+function getSnapshot(): TelemetryState {
+  return state;
+}
+
+function getServerSnapshot(): TelemetryState {
+  return EMPTY;
 }
 
 export function useTelemetryStream() {
-  const [history, setHistory] = useState<readonly TelemetryReading[]>(() => generateInitialHistory());
-  const [current, setCurrent] = useState<TelemetryReading>(() => history[history.length - 1]);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const snap = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
-  useEffect(() => {
-    intervalRef.current = setInterval(() => {
-      const reading = tick();
-      setCurrent(reading);
-      setHistory((prev) => {
-        const next = [...prev, reading];
-        return next.length > MAX_HISTORY
-          ? next.slice(next.length - MAX_HISTORY)
-          : next;
-      });
-    }, TICK_MS);
+  const setLampEnabled = useCallback(
+    (enabled: boolean) => {
+      setState({ lampEnabled: enabled });
+      if (snap.deviceId) {
+        apiFetch(`/api/device/${snap.deviceId}/settings`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lampEnabled: enabled }),
+        }).catch(() => {});
+      }
+    },
+    [snap.deviceId]
+  );
 
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, []);
-
-  const setLampEnabled = useCallback((enabled: boolean) => {
-    sim.lampEnabled = enabled;
-  }, []);
-
-  const setFanEnabled = useCallback((enabled: boolean) => {
-    sim.fanEnabled = enabled;
-  }, []);
+  const setFanEnabled = useCallback(
+    (enabled: boolean) => {
+      setState({ fanEnabled: enabled });
+      if (snap.deviceId) {
+        apiFetch(`/api/device/${snap.deviceId}/settings`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fanEnabled: enabled }),
+        }).catch(() => {});
+      }
+    },
+    [snap.deviceId]
+  );
 
   const triggerServo = useCallback(() => {
-    sim.servoAngle = 90;
-    setTimeout(() => {
-      sim.servoAngle = 0;
-    }, 3000);
-  }, []);
+    if (snap.deviceId) {
+      apiFetch(`/api/device/${snap.deviceId}/servo/trigger`, {
+        method: "POST",
+      }).catch(() => {});
+    }
+  }, [snap.deviceId]);
 
   const exportAsCsv = useCallback(() => {
+    const history = state.history;
     if (history.length === 0) return;
 
     const header = "Time,Temperature,Humidity,Lamp Duty,Fan Duty,Servo Angle";
@@ -210,13 +265,14 @@ export function useTelemetryStream() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [history]);
+  }, []);
 
   return {
-    current,
-    history,
-    lampEnabled: sim.lampEnabled,
-    fanEnabled: sim.fanEnabled,
+    current: snap.current,
+    history: snap.history,
+    deviceId: snap.deviceId,
+    lampEnabled: snap.lampEnabled,
+    fanEnabled: snap.fanEnabled,
     setLampEnabled,
     setFanEnabled,
     triggerServo,

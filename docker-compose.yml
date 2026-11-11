@@ -1,64 +1,31 @@
-version: '3.8'
-
 services:
-  caddy:
-    image: caddy:2.7-alpine
+  app:
+    build: .
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
-    networks:
-      - elycubator-net
-
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    restart: unless-stopped
-    command: tunnel run
+      - "3000:3000"
     environment:
-      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
-    networks:
-      - elycubator-net
-
-  api:
-    image: ghcr.io/maiaphrodite/elycubator-api:latest
-    environment:
-      - NODE_ENV=production
-      - DATABASE_URL=postgresql://postgres:${DB_PASSWORD:-postgres}@db:5432/elycubator_db
+      - APP_ENV=${APP_ENV:-production}
       - JWT_SECRET=${JWT_SECRET}
-      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-15m}
-      - REFRESH_TOKEN_EXPIRES_IN=${REFRESH_TOKEN_EXPIRES_IN:-7d}
-      - DEVICE_TOKEN_EXPIRES_IN=${DEVICE_TOKEN_EXPIRES_IN:-30d}
       - DEVICE_SECRET=${DEVICE_SECRET}
-    restart: unless-stopped
-    networks:
-      - elycubator-net
-
-  web:
-    image: ghcr.io/maiaphrodite/elycubator-web:latest
-    restart: unless-stopped
-    networks:
-      - elycubator-net
-
-  db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      POSTGRES_DB: elycubator_db
+      - LEGACY_API_TOKEN=${LEGACY_API_TOKEN}
+      - PORT=3000
+      - DB_PATH=/data/elycubator.db
+      - REGISTRATION_ENABLED=${REGISTRATION_ENABLED:-true}
+      - TELEMETRY_RETENTION_DAYS=${TELEMETRY_RETENTION_DAYS:-30}
+    stop_grace_period: 15s
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
     volumes:
-      - pgdata:/var/lib/postgresql/data
-    restart: unless-stopped
-    networks:
-      - elycubator-net
-
-networks:
-  elycubator-net:
+      - elycubator-data:/data
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
 
 volumes:
-  pgdata:
-  caddy_data:
-  caddy_config:
+  elycubator-data:

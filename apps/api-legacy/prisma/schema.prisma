@@ -41,12 +41,12 @@ model Settings {
   deviceId         String   @unique
   device           Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
 
-  targetTemp       Float    @default(37.5)
+  targetTemp       Float    @default(37.8)
   targetHumidity   Float    @default(55.0)
 
-  tempKp           Float    @default(2.0)
-  tempKi           Float    @default(0.5)
-  tempKd           Float    @default(1.0)
+  tempKp           Float    @default(25.0)
+  tempKi           Float    @default(1.0)
+  tempKd           Float    @default(5.0)
 
   humidKp          Float    @default(1.5)
   humidKi          Float    @default(0.3)
@@ -58,6 +58,21 @@ model Settings {
 
   lampEnabled      Boolean  @default(true)
   fanEnabled       Boolean  @default(true)
+
+  modeAuto         Boolean  @default(true)
+  dayCount         Int      @default(0)
+  startedAt        DateTime?
+  turnerTest       Boolean  @default(false)
+  kipas            Int      @default(0)
+
+  targetTempSet    Float    @default(37.8)
+  targetTempHatch  Float    @default(37.2)
+  setKp            Float    @default(25.0)
+  setKi            Float    @default(1.0)
+  setKd            Float    @default(5.0)
+  hatchKp          Float    @default(30.0)
+  hatchKi          Float    @default(1.5)
+  hatchKd          Float    @default(2.0)
 
   updatedAt        DateTime @updatedAt
 }
