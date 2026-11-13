@@ -53,6 +53,28 @@ export function DevicesPage() {
     return () => clearInterval(timer);
   }, [load]);
 
+  const claimByMac = async (macAddress: string) => {
+    setError(null);
+    setNote(null);
+    const label = window.prompt("Nickname for this device (optional):", "") ?? "";
+    setClaiming(true);
+    try {
+      const res = await apiFetch("/api/device/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ macAddress, nickname: label.trim() }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.success) throw new Error(body.error || "Claim failed.");
+      setNote(`Claimed ${macAddress}.`);
+      await load();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setClaiming(false);
+    }
+  };
+
   const claim = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -169,13 +191,23 @@ export function DevicesPage() {
         ) : (
           <Stack gap="xs">
             {pending.map((device) => (
-              <Group key={device.macAddress} justify="space-between">
-                <Text size="xs" ff="monospace">
-                  {device.macAddress}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  registered {fmtTime(device.createdAt)}
-                </Text>
+              <Group key={device.macAddress} justify="space-between" wrap="nowrap">
+                <Stack gap={0}>
+                  <Text size="xs" ff="monospace">
+                    {device.macAddress}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    registered {fmtTime(device.createdAt)}
+                  </Text>
+                </Stack>
+                <Button
+                  size="xs"
+                  variant="light"
+                  loading={claiming}
+                  onClick={() => claimByMac(device.macAddress)}
+                >
+                  Claim
+                </Button>
               </Group>
             ))}
           </Stack>

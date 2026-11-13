@@ -1,8 +1,11 @@
 package main
 
 import (
+	"crypto/rand"
 	"crypto/subtle"
 	"database/sql"
+	"log"
+	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
@@ -40,8 +43,20 @@ func hAPIPhp(w http.ResponseWriter, r *http.Request) {
 
 	device, err := resolveLegacyDevice(r, q.Get("deviceId"), q.Get("mac"))
 	if err != nil {
-		fail(w, http.StatusNotFound, "No matching device registered.")
-		return
+		// Legacy firmware identifies itself by MAC and never calls
+		// /api/device/init, so auto-create the row on first contact.
+		mac := strings.TrimSpace(q.Get("mac"))
+		if mac == "" {
+			fail(w, http.StatusNotFound, "No matching device registered.")
+			return
+		}
+		device, err = registerLegacyDevice(r, mac)
+		if err != nil {
+			log.Printf("legacy register failed mac=%s: %v", mac, err)
+			fail(w, http.StatusInternalServerError, "register device failed.")
+			return
+		}
+		log.Printf("legacy device registered: mac=%s id=%s pin=%s", mac, device.ID, device.PairingCode.String)
 	}
 	deviceID := device.ID
 
@@ -180,6 +195,42 @@ func hAPIPhp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{"success": true, "data": incubationView(fresh)})
+}
+
+// registerLegacyDevice creates the device row on first contact from a legacy
+// (MAC-identifying) firmware so it can be claimed from the dashboard.
+func registerLegacyDevice(r *http.Request, mac string) (sqlc.Device, error) {
+	pin, err := newPairingPin()
+	if err != nil {
+		return sqlc.Device{}, err
+	}
+	device, err := queries.CreateDevice(r.Context(), sqlc.CreateDeviceParams{
+		ID:           newID(),
+		MacAddress:   mac,
+		PairingCode:  sql.NullString{String: pin, Valid: true},
+		DeviceSecret: legacyAPIToken,
+	})
+	if err != nil {
+		// A concurrent request may have created it already.
+		return queries.GetDeviceByMAC(r.Context(), mac)
+	}
+	if _, err := queries.GetSettingsByDevice(r.Context(), device.ID); err != nil {
+		// New devices must start with the heater disabled.
+		created, cerr := queries.CreateSettings(r.Context(), sqlc.CreateSettingsParams{ID: newID(), DeviceID: device.ID})
+		if cerr == nil {
+			created.LampEnabled = 0
+			queries.UpdateSettings(r.Context(), settingsToParams(created))
+		}
+	}
+	return device, nil
+}
+
+func newPairingPin() (string, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(900000))
+	if err != nil {
+		return "", err
+	}
+	return strconv.FormatInt(n.Int64()+100000, 10), nil
 }
 
 func resolveLegacyDevice(r *http.Request, deviceID, mac string) (sqlc.Device, error) {
