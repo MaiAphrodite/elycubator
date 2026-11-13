@@ -67,7 +67,7 @@ export function LoginPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", backgroundColor: "var(--mantine-color-cream-1)" }}>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", backgroundColor: "var(--mantine-color-body)" }}>
       <Container size={420} my={40} style={{ width: "100%" }}>
         <Title ta="center" order={1} fw={900} style={{ color: "var(--mantine-color-olive-7)" }}>
           Pinkegg

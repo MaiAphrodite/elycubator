@@ -79,7 +79,7 @@ body {
   background-color: var(--mantine-color-cream-1);
 }
 
-.mantine-Card-root,
-.mantine-Paper-root {
+:root[data-mantine-color-scheme="light"] .mantine-Card-root,
+:root[data-mantine-color-scheme="light"] .mantine-Paper-root {
   --mantine-color-body: var(--mantine-color-cream-0);
 }
