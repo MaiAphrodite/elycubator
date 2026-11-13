@@ -19,12 +19,11 @@ COPY apps/api-go .
 RUN CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /elycubator .
 
 FROM alpine:3.21
-RUN apk add --no-cache ca-certificates sqlite && adduser -D -u 10001 app
+RUN apk add --no-cache ca-certificates sqlite su-exec && adduser -D -u 10001 app
 COPY --from=go-builder /elycubator /usr/local/bin/elycubator
 COPY --from=web-builder /app/apps/web/dist /srv/web
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 ENV PORT=3000 WEB_DIST=/srv/web DB_PATH=/data/elycubator.db
-RUN mkdir -p /data && chown -R app:app /data /srv
-USER app
-VOLUME /data
+RUN mkdir -p /data && chown -R app:app /data /srv && chmod +x /usr/local/bin/docker-entrypoint.sh
 EXPOSE 3000
-CMD ["elycubator"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

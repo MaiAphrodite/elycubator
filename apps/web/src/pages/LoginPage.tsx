@@ -67,10 +67,10 @@ export function LoginPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", backgroundColor: "#f8f9fa" }}>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", backgroundColor: "var(--mantine-color-cream-1)" }}>
       <Container size={420} my={40} style={{ width: "100%" }}>
-        <Title ta="center" order={1} fw={900} style={{ color: "#228be6" }}>
-          Elycubator
+        <Title ta="center" order={1} fw={900} style={{ color: "var(--mantine-color-olive-7)" }}>
+          Pinkegg
         </Title>
         <Text c="dimmed" size="sm" ta="center" mt={5}>
           {mode === "login"
@@ -97,7 +97,7 @@ export function LoginPage() {
 
             <TextInput
               label="Email"
-              placeholder="mai@elycubator.local"
+              placeholder="mai@pinkegg.app"
               required
               mt={mode === "register" ? "md" : undefined}
               value={email}

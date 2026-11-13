@@ -41,7 +41,7 @@ export function DashboardPage() {
         <Group justify="space-between" align="flex-start" wrap="nowrap">
           <Stack gap={2}>
             <Title order={3} fw={700} lh={1.2}>
-              Incubator Alpha
+              Pinkegg
             </Title>
             <Group gap={4} wrap="nowrap">
               <IconActivity

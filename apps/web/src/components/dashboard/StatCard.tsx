@@ -16,9 +16,9 @@ interface StatCardProps {
 }
 
 const SPARK_COLORS: Record<string, string> = {
-  teal: "#12b886",
-  blue: "#339af0",
-  violet: "#7950f2",
+  teal: "#5F7038",
+  blue: "#8B9957",
+  violet: "#B3A078",
 };
 
 const cardVariant = {

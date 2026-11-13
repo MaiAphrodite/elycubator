@@ -209,7 +209,7 @@ function tick(): void {
 }
 
 async function main(): Promise<void> {
-  console.log("🐣 Elycubator Simulator Starting...");
+  console.log("🐣 Pinkegg Simulator Starting...");
   console.log(`   API: ${API_BASE_URL}`);
   console.log(`   MAC: ${MAC_ADDRESS}`);
   console.log(`   Tick: ${TICK_INTERVAL_MS}ms`);

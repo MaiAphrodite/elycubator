@@ -73,3 +73,13 @@ body {
 .mantine-Card-root {
   transition: transform 100ms ease;
 }
+
+/* Pinkegg surfaces */
+:root[data-mantine-color-scheme="light"] body {
+  background-color: var(--mantine-color-cream-1);
+}
+
+.mantine-Card-root,
+.mantine-Paper-root {
+  --mantine-color-body: var(--mantine-color-cream-0);
+}

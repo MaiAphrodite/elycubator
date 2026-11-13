@@ -3,8 +3,11 @@ import { createTheme } from "@mantine/core";
 const FONT_BODY = "'Plus Jakarta Sans', system-ui, -apple-system, sans-serif";
 const FONT_MONO = "'JetBrains Mono', 'SF Mono', 'Fira Code', monospace";
 
+export const BRAND = "#3E5222";
+export const CREAM = "#FBF8F0";
+
 export const theme = createTheme({
-  primaryColor: "indigo",
+  primaryColor: "olive",
   fontFamily: FONT_BODY,
   fontFamilyMonospace: FONT_MONO,
   headings: {
@@ -27,17 +30,46 @@ export const theme = createTheme({
     xl: "1.5rem",
   },
   colors: {
-    dark: [
-      "#C9C9C9",
-      "#b8b8b8",
-      "#828282",
-      "#696969",
-      "#424242",
-      "#3b3b3b",
-      "#2e2e2e",
-      "#242424",
-      "#1f1f1f",
-      "#141414",
+    olive: [
+      "#F7F8EF",
+      "#EDEFD9",
+      "#DCE1C0",
+      "#C6CE9E",
+      "#AEB97B",
+      "#8B9957",
+      "#5F7038",
+      "#3E5222",
+      "#34461D",
+      "#2A3A18",
     ],
+    cream: [
+      "#FFFDF8",
+      "#FBF8F0",
+      "#F6F1E4",
+      "#EFE8D7",
+      "#E5DCC6",
+      "#D9CDB1",
+      "#C7B795",
+      "#B3A078",
+      "#97845E",
+      "#7A6948",
+    ],
+    dark: [
+      "#E4E7DB",
+      "#CBD1BF",
+      "#9AA389",
+      "#7B846C",
+      "#535B45",
+      "#454D39",
+      "#353C2B",
+      "#2B321F",
+      "#232919",
+      "#1A1F12",
+    ],
+  },
+  other: {
+    brand: BRAND,
+    cream: CREAM,
+    surface: "#FFFDF8",
   },
 });

@@ -1,4 +1,4 @@
-# Elycubator IoT Platform
+# Pinkegg IoT Platform
 
 An enterprise-grade, real-time IoT platform for smart egg incubators. This monorepo contains the complete software stack: hardware simulator, backend API, web dashboard, and database layer.
 

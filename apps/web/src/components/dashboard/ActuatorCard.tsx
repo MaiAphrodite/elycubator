@@ -166,7 +166,7 @@ export function ActuatorCard({
               size={16}
               stroke={1.5}
               style={{
-                color: "var(--mantine-color-indigo-filled)",
+                color: "var(--mantine-color-olive-filled)",
                 transform: `rotate(${servoAngle}deg)`,
                 transition: "transform 300ms ease",
               }}
@@ -183,7 +183,7 @@ export function ActuatorCard({
           </Group>
           <ActionIcon
             variant="light"
-            color="indigo"
+            color="olive"
             size="md"
             radius="lg"
             onClick={onTriggerServo}

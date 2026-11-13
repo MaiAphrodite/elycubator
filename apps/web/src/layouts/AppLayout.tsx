@@ -57,10 +57,10 @@ export function AppLayout({ children }: AppLayoutProps) {
             <IconEgg
               size={24}
               stroke={1.5}
-              style={{ color: "var(--mantine-color-indigo-6)" }}
+              style={{ color: "var(--mantine-color-olive-6)" }}
             />
             <Title order={4} fw={800} visibleFrom="xs">
-              Elycubator
+              Pinkegg
             </Title>
           </Group>
 
@@ -110,10 +110,10 @@ export function AppLayout({ children }: AppLayoutProps) {
                   style={(theme) => ({
                     borderRadius: theme.radius.lg,
                     backgroundColor: isActive
-                      ? "var(--mantine-color-indigo-light)"
+                      ? "var(--mantine-color-olive-light)"
                       : "transparent",
                     color: isActive
-                      ? "var(--mantine-color-indigo-filled)"
+                      ? "var(--mantine-color-olive-filled)"
                       : "var(--mantine-color-text)",
                     fontWeight: isActive ? 600 : 400,
                     fontSize: "0.875rem",
@@ -179,10 +179,10 @@ export function AppLayout({ children }: AppLayoutProps) {
                   padding: "8px 20px",
                   borderRadius: "1rem",
                   color: isActive
-                    ? "var(--mantine-color-indigo-filled)"
+                    ? "var(--mantine-color-olive-filled)"
                     : "var(--mantine-color-dimmed)",
                   backgroundColor: isActive
-                    ? "var(--mantine-color-indigo-light)"
+                    ? "var(--mantine-color-olive-light)"
                     : "transparent",
                   transition: "all 200ms ease",
                   minWidth: 64,

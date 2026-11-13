@@ -24,9 +24,9 @@ import { useTelemetryStream } from "../hooks/useTelemetryStream";
 import type { TelemetryReading } from "../types/telemetry";
 
 const COLORS = {
-  temperature: "#12b886",
-  humidity: "#339af0",
-  target: "#fa5252",
+  temperature: "#5F7038",
+  humidity: "#8B9957",
+  target: "#C4735A",
 } as const;
 
 function ChartTooltip({

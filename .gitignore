@@ -21,3 +21,10 @@ logs/
 bun.lockb
 elycubator-src.tar.gz
 *.tar.gz
+
+# Firmware secrets (Wi-Fi passwords, bot token, device secret, API token)
+firmware/**/secrets.h
+
+# Arduino build caches
+.arduino-build/
+.arduino-build-*/
