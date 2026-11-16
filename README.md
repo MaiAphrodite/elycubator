@@ -1,6 +1,24 @@
 # Pinkegg IoT Platform
 
-An enterprise-grade, real-time IoT platform for smart egg incubators. This monorepo contains the complete software stack: hardware simulator, backend API, web dashboard, and database layer.
+> Egg incubator control platform: Go API, WebSocket device stream, React dashboard
+
+[![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square)](LICENSE)
+[![Stack](https://img.shields.io/badge/stack-Go%20%2B%20React%20%2B%20SQLite-000?style=flat-square)](#system-architecture)
+[![CI](https://github.com/MaiAphrodite/elycubator/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/MaiAphrodite/elycubator/actions/workflows/ci.yml)
+
+A Go API holds the incubation setpoints, talks to ESP32 firmware over a WebSocket stream, and serves the React dashboard from the same port. A Bun simulator stands in for the hardware, so the whole loop runs on one machine with SQLite on a volume. Packaging is a single container image, with Caddy in front of it in production.
+
+## Quick Start
+
+Three commands, from the source tree:
+
+```bash
+git clone https://github.com/MaiAphrodite/elycubator.git && cd elycubator
+cp .env.example .env          # then fill in JWT_SECRET and DEVICE_SECRET
+docker compose up -d --build  # Go API and React SPA into one image, on port 3000
+```
+
+Open http://localhost:3000, and check the API with `curl -fsS http://localhost:3000/api/health`. The production runbook, including TLS and Azure VM sizing, is in [`DEPLOY.md`](./DEPLOY.md); local UI work uses [`scripts/dev-local.sh`](./scripts/dev-local.sh), described under [Local Development](#local-development).
 
 > **Note**: This system was architected to avoid bloated infrastructure (external MQTT brokers, message queues) by utilizing native high-performance WebSockets directly in the API layer. See [ADR.md](./ADR.md) for the full decision record.
 
@@ -8,6 +26,7 @@ An enterprise-grade, real-time IoT platform for smart egg incubators. This monor
 
 ## Table of Contents
 
+- [Quick Start](#quick-start)
 - [System Architecture](#system-architecture)
 - [Database Schema](#database-schema)
 - [Security and Authentication](#security-and-authentication)
@@ -19,21 +38,21 @@ An enterprise-grade, real-time IoT platform for smart egg incubators. This monor
 - [Local Development](#local-development)
 - [Production Deployment](#production-deployment)
 - [ESP32 Hardware Integration](#esp32-hardware-integration)
+- [License](#license)
 
 ---
 
 ## System Architecture
 
-Elycubator is built on a modern TypeScript/Bun stack organized as a monorepo:
+The running system is a Go API plus a React SPA, packaged as one container:
 
 | Component | Path | Technology | Role |
 |-----------|------|------------|------|
-| Backend API | `apps/api-legacy` | ElysiaJS + Bun | REST provisioning, WebSocket multiplexing, Prisma ORM |
+| Backend API | `apps/api-go` | Go 1.26 | REST endpoints, auth, device WebSocket, serves the built SPA |
 | Web Dashboard | `apps/web` | React + Vite + Mantine | Real-time visualization, settings management |
 | Hardware Simulator | `apps/simulator` | Bun (native WebSocket client) | Simulates ESP32 telemetry streams |
-| Database | docker `db` service | PostgreSQL 15 | Persistent storage for users, devices, telemetry |
-| Reverse Proxy | docker `caddy` service | Caddy 2.7 | TLS termination, path-based routing |
-| Tunnel | docker `cloudflared` service | cloudflared | Zero-trust ingress without open firewall ports |
+| Database | `elycubator-data` volume | SQLite | Users, devices, telemetry and settings |
+| Reverse Proxy | `caddy` in `compose.prod.yml` | Caddy 2 | TLS termination, path-based routing |
 
 ### Data Flow
 
@@ -46,11 +65,11 @@ graph TD
 
     ESP32["ESP32 / Simulator"]:::hw
     WebUI["React Web UI"]:::fe
-    API["Elysia API Server"]:::be
-    DB[("PostgreSQL")]:::db
+    API["Go API (apps/api-go)"]:::be
+    DB[("SQLite")]:::db
 
     ESP32 -- "1. POST /api/device/init (HMAC)" --> API
-    API -. "2. Returns deviceToken (JWT)" .-> ESP32
+    API -. "2. Returns device token (JWT)" .-> ESP32
     ESP32 == "3. ws:// telemetry stream" ==> API
     API == "6. Push settings via WS" ==> ESP32
     WebUI -- "4. POST /api/auth/login" --> API
@@ -58,11 +77,20 @@ graph TD
     API -- "Read/Write" --> DB
 ```
 
+### Legacy stack
+
+`apps/api-legacy` is the retired ElysiaJS + Prisma + PostgreSQL implementation. It is
+excluded from the container image by `.dockerignore` and is only reachable through the
+legacy demo data commands under [Local Development](#local-development). The Prisma
+models in the next section document that retired schema; the live Go service stores the
+same entities in SQLite.
+
 ---
 
 ## Database Schema
 
-Four core models managed by Prisma ORM:
+Four core models, shown here in their Prisma form from the retired Node API. The Go
+service keeps the same entities in SQLite:
 
 ### User
 | Column | Type | Constraints | Description |
@@ -646,66 +674,53 @@ The current Go service stores everything in SQLite (`DB_PATH`). The Postgres var
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) v1.0+
-- Docker and Docker Compose (for PostgreSQL)
+- Docker with the Compose plugin, for the container run
+- [Bun](https://bun.sh/) v1.0+, for the Vite dev server and the hardware simulator
+- [Go](https://go.dev/dl/) 1.26+, for the API when it runs outside Docker
+- [jq](https://jqlang.github.io/jq/), used by `scripts/dev-local.sh` to seed and claim
 
-### 1. Clone and Configure
+### 1. Configure
 
 ```bash
-git clone <repo-url>
-cd inkubator-iot
 cp .env.example .env
-# Edit .env with your preferred passwords and secrets
+# Set JWT_SECRET (32+ chars) and DEVICE_SECRET (16+ chars) before starting the container
 ```
 
-### 2. Database Setup
+`APP_ENV=production` refuses to boot on default or short secrets, so a stale `.env` fails loudly instead of quietly signing tokens with a known key.
+
+### 2. Run the container on port 3000
 
 ```bash
-# Start PostgreSQL container
-docker-compose up db -d
+docker compose up -d --build
+curl -fsS http://localhost:3000/api/health
+docker compose logs -f app
+```
 
-# Generate Prisma client and push schema
+One Go binary serves `/api/*`, the SPA, and the device WebSocket. SQLite lives in the `elycubator-data` volume, so `docker compose down` keeps the data and `down -v` drops it.
+
+### 3. Run the UI/UX rig on ports 5173 and 3100
+
+`scripts/dev-local.sh` builds the API into `.local-dev/`, keeps a scratch database there, and leaves the container on :3000 alone:
+
+```bash
+scripts/dev-local.sh up      # build and start api :3100, simulator, Vite :5173
+scripts/dev-local.sh status  # which of the three is up
+scripts/dev-local.sh logs    # tail all three logs
+scripts/dev-local.sh down    # stop all three
+```
+
+It registers `dev@pinkegg.local` / `devpassword123`, claims the simulated device `AA:BB:CC:DD:EE:99` (PIN `424242`), and starts an incubation cycle so the dashboard renders live phase data. The simulator itself registers over HMAC, opens the WebSocket, receives the current settings, and streams telemetry every 2 seconds.
+
+### Legacy demo data
+
+The retired Elysia/Prisma API in `apps/api-legacy` is excluded from the image build. Its seed script still produces a larger demo set (user `mai@elycubator.local` / `seed-password-123`, four devices, telemetry history) against the PostgreSQL instance named by `DATABASE_URL`:
+
+```bash
 cd apps/api-legacy
 bunx prisma generate
 bunx prisma db push
-
-# Seed demo data (creates user + 4 devices + 200 telemetry readings)
 bun run db:seed
 ```
-
-The seed script creates the following test data:
-
-| Entity | Details |
-|--------|---------|
-| User | `mai@elycubator.local` / `seed-password-123` |
-| Device 1 | "Incubator Alpha" - stable profile, 100 readings |
-| Device 2 | "Hatcher Beta" - struggling profile (runs hot/humid), 100 readings |
-| Device 3 | "Storage Unit" - offline, 0 readings |
-| Device 4 | Unclaimed device, MAC `AA:BB:CC:DD:EE:04`, PIN `123456` |
-
-### 3. Run the Full Stack
-
-Open three terminals:
-
-```bash
-# Terminal 1: API server (port 3000)
-cd apps/api-legacy
-bun run dev
-
-# Terminal 2: Web UI (port 5173)
-cd apps/web
-bun run dev
-
-# Terminal 3: Hardware Simulator (connects as "Hatcher Beta")
-cd apps/simulator
-bun run start
-```
-
-The simulator will automatically:
-1. Register with the API using HMAC authentication.
-2. Open a WebSocket connection.
-3. Receive current settings.
-4. Stream simulated telemetry every 2 seconds.
 
 ---
 
@@ -713,51 +728,39 @@ The simulator will automatically:
 
 ### Container Architecture
 
-The `docker-compose.yml` orchestrates five services on a shared Docker network:
+`compose.prod.yml` runs two containers on one network. The `app` image (API, SPA, device WebSocket, SQLite on the `elycubator-data` volume) sits behind `caddy`, which terminates TLS on 80/443 and proxies to `app:3000` using the [`Caddyfile`](./Caddyfile). Caddy health checks `/api/health` and forwards WebSocket upgrades without extra configuration.
 
 ```
-Internet -> Cloudflare Tunnel -> cloudflared -> caddy:80
-                                                  |
-                                        +---------+---------+
-                                        |                   |
-                                   /api/* -> api:3000   /* -> web:80
-                                                  |
-                                              db:5432
+Internet -> caddy:443 -> app:3000 (API + SPA + WS) -> /data/elycubator.db
 ```
 
-Caddy natively proxies WebSocket connections without any additional configuration.
+`docker-compose.yml` is the single-service variant used by the [Quick Start](#quick-start) and by local runs.
 
 ### Deploy from GitHub Container Registry
 
-```bash
-docker-compose pull
-docker-compose up -d
-```
-
-### Deploy from Local Source
+CI publishes `ghcr.io/<owner>/elycubator:latest` and a commit SHA tag on every push to `main`. On the host, with `GHCR_OWNER`, `SITE_ADDRESS`, `JWT_SECRET`, and `DEVICE_SECRET` set in `.env`:
 
 ```bash
-docker-compose -p elycubator -f docker-compose.yml -f <(cat <<EOF
-version: '3.8'
-services:
-  api:
-    build: ./apps/api-legacy
-  web:
-    build: ./apps/web
-EOF
-) up -d --build
+docker compose -f compose.prod.yml pull
+docker compose -f compose.prod.yml up -d
 ```
 
-> **Warning**: Always use the `-p elycubator` project flag when running custom compose overrides. Without it, Docker may create duplicate containers that clash on port 80.
+[`DEPLOY.md`](./DEPLOY.md) covers the rest: VM sizing, the firewall and swap steps, and how to bootstrap an image that CI has not published yet.
 
 ### Rollback
 
-If a deployment fails, your remote `ghcr.io` images remain at the last stable tag:
+Pin a known good tag in `.env`, then recreate the container:
 
 ```bash
-docker-compose down
-docker-compose up -d
+# .env
+IMAGE_TAG=<commit-sha>
 ```
+
+```bash
+docker compose -f compose.prod.yml up -d
+```
+
+Backups use [`scripts/backup-db.sh`](./scripts/backup-db.sh), which runs `sqlite3 .backup` inside the container and prunes copies older than 30 days.
 
 ---
 
@@ -830,3 +833,10 @@ Send a JSON text frame every 2 seconds (configurable):
 ```
 
 Do **not** close the WebSocket connection. If disconnected, implement exponential backoff reconnection starting at 5 seconds.
+
+---
+
+## License
+
+MIT. See [`LICENSE`](./LICENSE).
+
