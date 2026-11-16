@@ -10,22 +10,24 @@ import {
   Stack,
   Text,
   TextInput,
-  Title,
 } from "@mantine/core";
 import {
-  IconAlertCircle,
-  IconCircleCheck,
-  IconDevices,
-  IconInfoCircle,
-  IconRefresh,
-} from "@tabler/icons-react";
+  AlertRegular,
+  CheckCircleRegular,
+  DeviceRegular,
+  InformationRegular,
+  Refresh2Regular,
+} from "@mingcute/react/core-regular";
+import { PageHeader } from "../components/PageHeader";
+import { SectionHeader } from "../components/dashboard/SectionHeader";
 import { useAuth } from "../contexts/AuthContext";
 import type { Device, PendingDevice } from "../types/device";
+import { parseServerTimestamp } from "../lib/time";
 
 const REFRESH_MS = 10000;
 
 function fmtTime(value: string): string {
-  return new Date(value.replace(" ", "T") + "Z").toLocaleString();
+  return parseServerTimestamp(value).toLocaleString();
 }
 
 export function DevicesPage() {
@@ -100,42 +102,38 @@ export function DevicesPage() {
   };
 
   return (
-    <Stack gap="md" p={{ base: "xs", sm: "md" }}>
-      <Group justify="space-between" align="center">
-        <Title order={3} fw={700}>
-          Devices
-        </Title>
-        <Button
-          variant="subtle"
-          size="xs"
-          leftSection={<IconRefresh size={14} />}
-          onClick={() => load()}
-        >
-          Refresh
-        </Button>
-      </Group>
+    <Stack gap="lg" p={{ base: "xs", sm: "md" }}>
+      <PageHeader
+        title="Devices"
+        subtitle={`${devices.length} claimed, ${pending.length} waiting`}
+        actions={
+          <Button
+            variant="default"
+            size="compact-sm"
+            leftSection={<Refresh2Regular size={16} />}
+            onClick={() => load()}
+          >
+            Refresh
+          </Button>
+        }
+      />
 
       {error && (
-        <Alert icon={<IconAlertCircle size={16} />} title="Error" color="red">
+        <Alert icon={<AlertRegular size={19} />} title="Error" color="red">
           {error}
         </Alert>
       )}
       {note && (
-        <Alert icon={<IconCircleCheck size={16} />} title="Done" color="green">
+        <Alert icon={<CheckCircleRegular size={19} />} title="Done" color="sage">
           {note}
         </Alert>
       )}
 
-      <Card padding="md" radius="lg" withBorder>
-        <Group gap="xs" mb="xs">
-          <IconDevices size={18} stroke={1.5} />
-          <Text size="sm" fw={700}>
-            Add a device
-          </Text>
-        </Group>
+      <Card>
+        <SectionHeader icon={<DeviceRegular size={18} />} title="Add a device" />
         <Text size="xs" c="dimmed" mb="md">
-          Power the incubator and wait for it to connect. Its screen shows a pairing PIN,
-          which proves you have physical access to it.
+          Power the incubator and wait for it to connect. The PIN on its screen proves
+          you have physical access.
         </Text>
         <form onSubmit={claim}>
           <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xs" mb="md">
@@ -162,31 +160,29 @@ export function DevicesPage() {
             type="submit"
             loading={claiming}
             disabled={pin.trim().length < 4}
-            leftSection={<IconCircleCheck size={16} />}
+            leftSection={<CheckCircleRegular size={19} />}
           >
             Claim device
           </Button>
         </form>
       </Card>
 
-      <Card padding="md" radius="lg" withBorder>
-        <Group justify="space-between" mb="xs">
-          <Group gap="xs">
-            <IconInfoCircle size={18} stroke={1.5} />
-            <Text size="sm" fw={700}>
-              Waiting to be claimed
-            </Text>
-          </Group>
-          {pending.length > 0 && (
-            <Badge color="orange" variant="light" size="sm">
-              {pending.length} waiting
-            </Badge>
-          )}
-        </Group>
+      <Card>
+        <SectionHeader
+          icon={<InformationRegular size={18} />}
+          title="Waiting to be claimed"
+          trailing={
+            pending.length > 0 ? (
+              <Badge color="amber" variant="light" size="sm" tt="none">
+                {pending.length} waiting
+              </Badge>
+            ) : undefined
+          }
+        />
         <Divider mb="sm" />
         {pending.length === 0 ? (
           <Text size="xs" c="dimmed">
-            Nothing waiting. A device appears here once it has registered itself with the server.
+            Nothing waiting. Devices appear here after they register with the server.
           </Text>
         ) : (
           <Stack gap="xs">
@@ -201,7 +197,7 @@ export function DevicesPage() {
                   </Text>
                 </Stack>
                 <Button
-                  size="xs"
+                  size="sm"
                   variant="light"
                   loading={claiming}
                   onClick={() => claimByMac(device.macAddress)}
@@ -214,13 +210,8 @@ export function DevicesPage() {
         )}
       </Card>
 
-      <Card padding="md" radius="lg" withBorder>
-        <Group gap="xs" mb="xs">
-          <IconCircleCheck size={18} stroke={1.5} />
-          <Text size="sm" fw={700}>
-            My devices
-          </Text>
-        </Group>
+      <Card>
+        <SectionHeader icon={<CheckCircleRegular size={18} />} title="My devices" />
         <Divider mb="sm" />
         {devices.length === 0 ? (
           <Text size="xs" c="dimmed">
@@ -234,7 +225,7 @@ export function DevicesPage() {
                   <Text size="sm" fw={600}>
                     {device.nickname ?? "Unnamed device"}
                   </Text>
-                  <Badge color="green" variant="light" size="sm">
+                  <Badge color="sage" variant="light" size="sm">
                     claimed
                   </Badge>
                 </Group>

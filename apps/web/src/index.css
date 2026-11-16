@@ -7,6 +7,7 @@
 }
 
 html {
+  font-size: 100%;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
 }
@@ -23,8 +24,81 @@ body {
   --safe-area-bottom: env(safe-area-inset-bottom, 0px);
   --safe-area-left: env(safe-area-inset-left, 0px);
   --safe-area-right: env(safe-area-inset-right, 0px);
-  --bottom-nav-height: 72px;
+  --bottom-nav-height: 88px;
   --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", monospace;
+
+  /* Text on filled controls. Light mode fills with the darkest brand shade
+     (espresso), dark mode fills with the light brand tint (cream), so the label
+     has to flip with the scheme. See `schemeAwareContrast` in theme.ts. */
+  --brand-filled-contrast: var(--mantine-color-white);
+
+  /* Raised surface for components that Mantine does not give a card body
+     (Accordion items and friends), so they follow the scheme too. */
+  --surface-raised: var(--mantine-color-cream-0);
+}
+
+:root[data-mantine-color-scheme="dark"] {
+  --brand-filled-contrast: var(--mantine-color-dark-9);
+  --surface-raised: var(--mantine-color-dark-6);
+}
+
+/* Keyboard focus. Mantine styles its own controls, but every UnstyledButton in
+   the app (nav items, actuator tiles, the sign-in mode toggle) had none. */
+.mantine-UnstyledButton-root:focus-visible,
+.skip-link:focus-visible {
+  outline: 2px solid var(--mantine-color-brand-7);
+  outline-offset: 2px;
+  border-radius: var(--mantine-radius-md);
+}
+
+/* Tiles and nav items only react to hover on devices that can hover, so a tap
+   on a phone never leaves a stuck hover state behind. */
+/* Transitions stay unconditional; only the hover response is gated. */
+.tile {
+  touch-action: manipulation;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+/* Reduced motion keeps colour feedback and drops the travel. Blanket
+   `transition: none` would strip the feedback that still helps. */
+@media (prefers-reduced-motion: reduce) {
+  .tile,
+  .skip-link {
+    transition:
+      background-color 160ms ease,
+      border-color 160ms ease,
+      color 160ms ease;
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tile:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px color-mix(in srgb, var(--mantine-color-brand-9) 16%, transparent);
+  }
+}
+
+/* Skip link: hidden until it takes focus, then it sits above the shell. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 400;
+  padding: 10px 14px;
+  border-radius: var(--mantine-radius-lg);
+  background: var(--mantine-color-brand-9);
+  color: var(--mantine-color-white);
+  font-weight: 600;
+  transform: translateY(-200%);
+  transition: transform 150ms ease-out;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
 }
 
 /* Bottom nav spacing */
@@ -53,7 +127,7 @@ body {
   input,
   select,
   textarea {
-    min-height: 48px;
+    min-height: 52px;
     font-size: 16px !important;
   }
 }
@@ -74,12 +148,32 @@ body {
   transition: transform 100ms ease;
 }
 
-/* Pinkegg surfaces */
+/* Pinkegg surfaces: warm cream page, slightly brighter cards */
 :root[data-mantine-color-scheme="light"] body {
-  background-color: var(--mantine-color-cream-1);
+  background-color: var(--mantine-color-cream-2);
 }
 
 :root[data-mantine-color-scheme="light"] .mantine-Card-root,
 :root[data-mantine-color-scheme="light"] .mantine-Paper-root {
   --mantine-color-body: var(--mantine-color-cream-0);
+}
+
+/* App chrome follows the colour scheme */
+:root[data-mantine-color-scheme="light"] .mantine-AppShell-header,
+:root[data-mantine-color-scheme="light"] .mantine-AppShell-navbar {
+  background-color: color-mix(
+    in srgb,
+    var(--mantine-color-cream-0) 88%,
+    transparent
+  );
+  border-color: var(--mantine-color-cream-3);
+}
+
+:root[data-mantine-color-scheme="dark"] .mantine-AppShell-header,
+:root[data-mantine-color-scheme="dark"] .mantine-AppShell-navbar {
+  background-color: color-mix(
+    in srgb,
+    var(--mantine-color-body) 88%,
+    transparent
+  );
 }

@@ -1,94 +1,140 @@
 import {
-  Stack,
-  Group,
-  Title,
-  Text,
-  ActionIcon,
+  Alert,
+  Box,
+  Button,
   SimpleGrid,
+  Stack,
+  Text,
 } from "@mantine/core";
-import {
-  IconActivity,
-  IconDownload,
-  IconDroplet,
-  IconTemperature,
-} from "@tabler/icons-react";
+import { DownloadRegular, DropRegular, ThermometerRegular, WarningRegular } from "@mingcute/react/core-regular";
+import { useMediaQuery } from "@mantine/hooks";
 import { motion } from "framer-motion";
-import { StatCard, ActuatorCard, IncubationDayCard } from "../components/dashboard";
+import { slideDown, staggerContainer } from "../lib/motion";
+import {
+  ActuatorCard,
+  ControlLoopCard,
+  CycleCard,
+  DeviceCard,
+  StatCard,
+} from "../components/dashboard";
+import { PageHeader } from "../components/PageHeader";
 import { useTelemetryStream } from "../hooks/useTelemetryStream";
-import { useIncubation } from "../hooks/useIncubation";
+import { useIncubation, HATCHER_START_DAY } from "../hooks/useIncubation";
+import { useFrameAge } from "../hooks/useFrameAge";
+import { formatElapsed } from "../lib/time";
 
-const stagger = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.06 } },
-};
+const STALE_AFTER_MS = 8000;
 
 export function DashboardPage() {
   const {
     current,
     history,
+    deviceId,
     lampEnabled,
     fanEnabled,
+    settings,
+    lastReceivedAt,
     setLampEnabled,
     setFanEnabled,
     triggerServo,
     exportAsCsv,
   } = useTelemetryStream();
   const { incubation } = useIncubation();
+  const frameAge = useFrameAge(lastReceivedAt);
+  const isPhone = useMediaQuery("(max-width: 30em)");
+  // The navbar eats 268px, so three stat columns only fit past 62em.
+  const isWide = useMediaQuery("(min-width: 62em)");
+
+  const targetTemp = incubation?.target_suhu ?? settings?.targetTemp ?? null;
+  const targetHumidity = settings?.targetHumidity ?? null;
+  const hasData = lastReceivedAt !== null;
+  const isStale = frameAge !== null && frameAge > STALE_AFTER_MS;
+  const hatcherActive = Boolean(
+    incubation && incubation.mode_auto === 1 && incubation.hari_ke >= HATCHER_START_DAY,
+  );
 
   return (
-    <motion.div variants={stagger} initial="hidden" animate="show">
-      <Stack gap="md" p={{ base: "xs", sm: "md" }}>
-        <Group justify="space-between" align="flex-start" wrap="nowrap">
-          <Stack gap={2}>
-            <Title order={3} fw={700} lh={1.2}>
-              Pinkegg
-            </Title>
-            <Group gap={4} wrap="nowrap">
-              <IconActivity
-                size={12}
-                stroke={1.5}
-                color="var(--mantine-color-dimmed)"
-              />
-              <Text size="xs" c="dimmed" ff="monospace" truncate>
-                {current.time}
-              </Text>
-            </Group>
-          </Stack>
-          <ActionIcon
-            variant="default"
-            size="md"
-            onClick={exportAsCsv}
-            aria-label="Export CSV"
-          >
-            <IconDownload size={16} />
-          </ActionIcon>
-        </Group>
+    <motion.div variants={staggerContainer} initial="hidden" animate="show">
+      <Stack gap="lg" p={{ base: "xs", sm: "md" }}>
+        <PageHeader
+          title="Dashboard"
+          subtitle={`last reading ${current.time}`}
+          actions={
+            <Button
+              variant="default"
+              size="compact-sm"
+              leftSection={<DownloadRegular size={16} />}
+              onClick={exportAsCsv}
+              disabled={history.length === 0}
+              aria-label={`Export ${history.length} readings as CSV`}
+            >
+              {history.length} rows
+            </Button>
+          }
+        />
 
-        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="sm">
+        {isStale && (
+          <motion.div variants={slideDown} initial="hidden" animate="show">
+          <Alert
+            icon={<WarningRegular size={18} />}
+            color="amber"
+            variant="light"
+            radius="lg"
+            title="No new data"
+          >
+            <Text size="sm">
+              Last reading was {formatElapsed(frameAge)} ago. Values below may be out of
+              date.
+            </Text>
+          </Alert>
+          </motion.div>
+        )}
+
+        <SimpleGrid cols={{ base: 2, lg: 3 }} spacing={isPhone ? "xs" : "md"}>
           <StatCard
+            compact={isPhone}
             label="Temperature"
-            value={`${current.temperature.toFixed(1)}°C`}
-            subtitle={`Target: ${(incubation?.target_suhu ?? 37.5).toFixed(1)}°C`}
-            icon={<IconTemperature size={18} stroke={1.5} />}
-            color="teal"
-            sparklineData={history}
-            sparklineKey="temperature"
-            sparklineDomain={[20, 45]}
+            value={hasData ? `${current.temperature.toFixed(1)}°C` : "—"}
+            subtitle={
+              targetTemp
+                ? isPhone
+                  ? `→ ${targetTemp.toFixed(1)}°C`
+                  : `Target ${targetTemp.toFixed(1)}°C`
+                : "Target not set"
+            }
+            icon={<ThermometerRegular size={24} />}
+            color="amber"
+            delta={hasData && targetTemp !== null ? current.temperature - targetTemp : null}
+            deltaUnit="°C"
+            trend={hasData ? history.map((reading) => reading.temperature) : []}
+            targetValue={targetTemp ?? undefined}
           />
           <StatCard
+            compact={isPhone}
             label="Humidity"
-            value={`${current.humidity.toFixed(1)}%`}
-            subtitle="Target: 55.0%"
-            icon={<IconDroplet size={18} stroke={1.5} />}
-            color="blue"
-            sparklineData={history}
-            sparklineKey="humidity"
-            sparklineDomain={[25, 85]}
+            value={hasData ? `${current.humidity.toFixed(1)}%` : "—"}
+            subtitle={
+              targetHumidity
+                ? isPhone
+                  ? `→ ${targetHumidity.toFixed(1)}%`
+                  : `Target ${targetHumidity.toFixed(1)}%`
+                : "Target not set"
+            }
+            icon={<DropRegular size={24} />}
+            color="sage"
+            delta={hasData && targetHumidity !== null ? current.humidity - targetHumidity : null}
+            deltaUnit="%"
+            trend={hasData ? history.map((reading) => reading.humidity) : []}
+            targetValue={targetHumidity ?? undefined}
           />
-          <IncubationDayCard
-            hariKe={incubation?.hari_ke ?? 0}
-            modeAuto={incubation?.mode_auto ?? 0}
-          />
+          <Box style={{ gridColumn: isWide ? "auto" : "1 / -1" }}>
+            <CycleCard
+              hariKe={incubation?.hari_ke ?? 0}
+              modeAuto={incubation?.mode_auto ?? 1}
+              startedAt={incubation?.waktu_mulai ?? 0}
+              targetTemp={targetTemp}
+            />
+          </Box>
         </SimpleGrid>
 
         <ActuatorCard
@@ -100,7 +146,46 @@ export function DashboardPage() {
           onToggleLamp={() => setLampEnabled(!lampEnabled)}
           onToggleFan={() => setFanEnabled(!fanEnabled)}
           onTriggerServo={triggerServo}
+          lampHistory={history.map((reading) => reading.lampDuty)}
+          fanHistory={history.map((reading) => reading.fanDuty)}
+          turnIntervalHrs={settings?.turnIntervalHrs ?? null}
+          turnAngle={settings?.turnAngle ?? null}
         />
+
+        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+          <ControlLoopCard
+            kp={incubation?.kp ?? null}
+            ki={incubation?.ki ?? null}
+            kd={incubation?.kd ?? null}
+            modeAuto={incubation?.mode_auto ?? 1}
+            hatcherActive={hatcherActive}
+            setter={
+              incubation
+                ? {
+                    kp: incubation.kp_set,
+                    ki: incubation.ki_set,
+                    kd: incubation.kd_set,
+                    target: incubation.target_suhu_set,
+                  }
+                : null
+            }
+            hatcher={
+              incubation
+                ? {
+                    kp: incubation.kp_hatch,
+                    ki: incubation.ki_hatch,
+                    kd: incubation.kd_hatch,
+                    target: incubation.target_suhu_hatch,
+                  }
+                : null
+            }
+          />
+          <DeviceCard
+            deviceId={deviceId}
+            bufferedReadings={history.length}
+            frameAge={frameAge}
+          />
+        </SimpleGrid>
       </Stack>
     </motion.div>
   );

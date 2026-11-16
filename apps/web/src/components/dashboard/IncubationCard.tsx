@@ -8,13 +8,9 @@ import {
   Stack,
   Switch,
 } from "@mantine/core";
-import {
-  IconEgg,
-  IconPlayerPlay,
-  IconPlayerStop,
-  IconRotateClockwise2,
-} from "@tabler/icons-react";
+import { EggRegular, PlayCircleRegular, Refresh2Regular, StopCircleRegular } from "@mingcute/react/core-regular";
 import { useIncubation, phaseLabel } from "../../hooks/useIncubation";
+import { SectionHeader } from "./SectionHeader";
 
 export function IncubationCard() {
   const { deviceId, incubation, busy, start, stop, testTurner, setModeAuto } =
@@ -24,26 +20,24 @@ export function IncubationCard() {
     : null;
 
   return (
-    <Card padding="md" radius="lg" withBorder>
-      <Group justify="space-between" mb="sm">
-        <Group gap="xs">
-          <IconEgg size={18} stroke={1.5} />
-          <Text size="sm" fw={700}>
-            Incubation
-          </Text>
-        </Group>
-        {phase && (
-          <Badge color={phase.color} variant="light" size="sm">
-            {phase.label}
-          </Badge>
-        )}
-      </Group>
+    <Card>
+      <SectionHeader
+        icon={<EggRegular size={18} />}
+        title="Incubation"
+        trailing={
+          phase ? (
+            <Badge color={phase.color} variant="light" size="sm" tt="none">
+              {phase.label}
+            </Badge>
+          ) : undefined
+        }
+      />
 
       {incubation ? (
         <SimpleGrid cols={{ base: 3 }} spacing="sm" mb="sm">
           <Stack gap={0}>
-            <Text size="xs" c="dimmed">Hari Ke</Text>
-            <Text size="lg" fw={700} ff="monospace">H-{incubation.hari_ke}</Text>
+            <Text size="xs" c="dimmed">Day</Text>
+            <Text size="lg" fw={700} ff="monospace">{incubation.hari_ke}</Text>
           </Stack>
           <Stack gap={0}>
             <Text size="xs" c="dimmed">Target</Text>
@@ -67,9 +61,9 @@ export function IncubationCard() {
 
       <SimpleGrid cols={{ base: 2 }} spacing="xs" mb="xs">
         <Button
-          size="xs"
-          color="teal"
-          leftSection={<IconPlayerPlay size={14} />}
+          size="sm"
+          color="brand"
+          leftSection={<PlayCircleRegular size={18} />}
           onClick={start}
           loading={busy === "start"}
           disabled={!deviceId}
@@ -77,10 +71,10 @@ export function IncubationCard() {
           Start
         </Button>
         <Button
-          size="xs"
+          size="sm"
           color="red"
           variant="light"
-          leftSection={<IconPlayerStop size={14} />}
+          leftSection={<StopCircleRegular size={18} />}
           onClick={stop}
           loading={busy === "stop"}
           disabled={!deviceId}
@@ -90,19 +84,19 @@ export function IncubationCard() {
       </SimpleGrid>
       <Group justify="space-between" wrap="nowrap">
         <Button
-          size="xs"
+          size="sm"
           variant="subtle"
-          leftSection={<IconRotateClockwise2 size={14} />}
+          leftSection={<Refresh2Regular size={18} />}
           onClick={testTurner}
           loading={busy === "turner"}
           disabled={!deviceId}
         >
-          Test Turner
+          Test turner
         </Button>
         <Group gap="xs" wrap="nowrap">
-          <Text size="xs" c="dimmed">Auto</Text>
+          <Text size="sm" c="dimmed">Auto</Text>
           <Switch
-            size="sm"
+            size="md"
             checked={(incubation?.mode_auto ?? 1) === 1}
             disabled={!deviceId}
             onChange={(e) => setModeAuto(e.currentTarget.checked)}

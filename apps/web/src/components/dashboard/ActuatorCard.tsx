@@ -1,20 +1,8 @@
-import {
-  Card,
-  Group,
-  Text,
-  Stack,
-  Switch,
-  ActionIcon,
-  Progress,
-  Box,
-  Badge,
-} from "@mantine/core";
-import {
-  IconBulb,
-  IconPropeller,
-  IconRotateClockwise2,
-} from "@tabler/icons-react";
+import { useEffect, useRef, useState } from "react";
+import { Box, Card, Group, SimpleGrid, Stack, Text, ThemeIcon, UnstyledButton } from "@mantine/core";
+import { BulbRegular, FanRegular, Refresh2Regular } from "@mingcute/react/core-regular";
 import { motion } from "framer-motion";
+import { DURATION, EASE } from "../../lib/motion";
 
 interface ActuatorCardProps {
   readonly lampDuty: number;
@@ -25,84 +13,198 @@ interface ActuatorCardProps {
   readonly onToggleLamp: () => void;
   readonly onToggleFan: () => void;
   readonly onTriggerServo: () => void;
+  readonly lampHistory: readonly number[];
+  readonly fanHistory: readonly number[];
+  readonly turnIntervalHrs: number | null;
+  readonly turnAngle: number | null;
 }
 
-const cardVariant = {
-  hidden: { opacity: 0, y: 12 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.3 } },
+const BAR_COUNT = 24;
+const TURN_FEEDBACK_MS = 3000;
+
+const tileMotion = {
+  whileTap: { scale: 0.98 },
+  transition: { duration: DURATION.press, ease: EASE.press },
 };
 
-function ActuatorRow({
-  icon,
-  label,
-  duty,
-  enabled,
-  color,
-  onToggle,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  duty: number;
-  enabled: boolean;
-  color: string;
-  onToggle: () => void;
-}) {
-  const displayDuty = enabled ? Math.round(duty) : 0;
+/** Last duty samples as a stepped band, oldest left, newest right. */
+function DutyBars({ samples, color }: { readonly samples: readonly number[]; readonly color: string }) {
+  const shown = samples.slice(-BAR_COUNT);
 
   return (
-    <Group gap="sm" wrap="nowrap" py={6}>
-      <Box
+    <Group gap={2} align="flex-end" h={30} mt="md" wrap="nowrap" aria-hidden>
+      {shown.length === 0 ? (
+        <Box
+          style={{
+            height: 3,
+            width: "100%",
+            borderRadius: 2,
+            backgroundColor: "var(--mantine-color-default-border)",
+          }}
+        />
+      ) : (
+        shown.map((value, index) => (
+          <Box
+            key={index}
+            style={{
+              flex: 1,
+              minWidth: 2,
+              height: `${Math.max(8, Math.min(100, value))}%`,
+              borderRadius: 2,
+              backgroundColor: `var(--mantine-color-${color}-4)`,
+              opacity: 0.3 + 0.55 * (index / Math.max(1, shown.length - 1)),
+            }}
+          />
+        ))
+      )}
+    </Group>
+  );
+}
+
+interface ArmTileProps {
+  readonly label: string;
+  readonly icon: React.ReactNode;
+  readonly color: string;
+  readonly enabled: boolean;
+  readonly duty: number;
+  readonly history: readonly number[];
+  readonly onToggle: () => void;
+}
+
+/**
+ * The whole tile is the control, so the target is thumb sized and there is no
+ * small switch parked at the edge. The switch is permission, the percentage is
+ * what the controller is driving right now, which is why an on lamp can show 0%.
+ */
+function ArmTile({ label, icon, color, enabled, duty, history, onToggle }: ArmTileProps) {
+  const output = enabled ? Math.round(duty) : 0;
+  const detail = !enabled ? "Off" : output > 0 ? `On · ${output}%` : "On · idle";
+
+  return (
+    <motion.div {...tileMotion} style={{ height: "100%" }}>
+      <UnstyledButton
+        role="switch"
+        aria-checked={enabled}
+        aria-label={`${label}, ${enabled ? "on" : "off"}, output ${output} percent`}
+        onClick={onToggle}
+        className="tile"
+        h="100%"
+        w="100%"
+        p="md"
         style={{
-          width: 36,
-          height: 36,
-          borderRadius: "0.75rem",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          display: "block",
+          borderRadius: "var(--mantine-radius-lg)",
+          border: `1px solid ${
+            enabled
+              ? `color-mix(in srgb, var(--mantine-color-${color}-5) 26%, var(--mantine-color-body))`
+              : "var(--mantine-color-default-border)"
+          }`,
           backgroundColor: enabled
-            ? `var(--mantine-color-${color}-light)`
-            : "var(--mantine-color-dark-6)",
-          color: enabled
-            ? `var(--mantine-color-${color}-filled)`
-            : "var(--mantine-color-dimmed)",
-          transition: "all 200ms ease",
-          flexShrink: 0,
+            ? `color-mix(in srgb, var(--mantine-color-${color}-5) 9%, var(--mantine-color-body))`
+            : "var(--mantine-color-body)",
         }}
       >
-        {icon}
-      </Box>
-
-      <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
-        <Group justify="space-between" wrap="nowrap">
-          <Text size="sm" fw={600}>
-            {label}
-          </Text>
-          <Group gap={6} wrap="nowrap">
-            <Badge size="xs" variant="light" color={enabled ? color : "gray"}>
-              {enabled ? "ON" : "OFF"}
-            </Badge>
-            <Text size="xs" ff="monospace" fw={600} c={enabled ? color : "dimmed"}>
-              {displayDuty}%
+        <Group gap="sm" wrap="nowrap" align="center">
+          <ThemeIcon
+            variant="light"
+            color={enabled ? color : "gray"}
+            size={40}
+            radius="md"
+            style={{ flexShrink: 0 }}
+          >
+            {icon}
+          </ThemeIcon>
+          <Stack gap={1} style={{ flex: 1, minWidth: 0 }}>
+            <Text size="sm" fw={700} lh={1.1} truncate>
+              {label}
             </Text>
-          </Group>
+            <Text size="xs" c={enabled ? undefined : "dimmed"} ff="monospace" lh={1.2} truncate>
+              {detail}
+            </Text>
+          </Stack>
         </Group>
-        <Progress
-          value={displayDuty}
-          color={enabled ? color : "gray"}
-          size={4}
-          radius="xl"
-          animated={enabled && displayDuty > 0}
-        />
-      </Stack>
+        <DutyBars samples={enabled ? history : []} color={enabled ? color : "gray"} />
+      </UnstyledButton>
+    </motion.div>
+  );
+}
 
-      <Switch
-        checked={enabled}
-        onChange={onToggle}
-        size="sm"
-        color={color}
-        style={{ flexShrink: 0 }}
-      />
-    </Group>
+function TurnerBar({
+  servoAngle,
+  turnIntervalHrs,
+  turnAngle,
+  onTrigger,
+}: {
+  readonly servoAngle: number;
+  readonly turnIntervalHrs: number | null;
+  readonly turnAngle: number | null;
+  readonly onTrigger: () => void;
+}) {
+  const [turning, setTurning] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+
+  const handle = () => {
+    onTrigger();
+    setTurning(true);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setTurning(false), TURN_FEEDBACK_MS);
+  };
+
+  const schedule =
+    turnIntervalHrs && turnAngle
+      ? `every ${turnIntervalHrs}h to ${turnAngle}°`
+      : "interval not set";
+
+  return (
+    <motion.div {...tileMotion}>
+      <UnstyledButton
+        onClick={handle}
+        aria-label={`Turn the eggs now, servo currently at ${servoAngle} degrees`}
+        className="tile"
+        w="100%"
+        p="md"
+        style={{
+          display: "block",
+          borderRadius: "var(--mantine-radius-lg)",
+          border: "1px solid color-mix(in srgb, var(--mantine-color-brand-8) 38%, var(--mantine-color-body))",
+          backgroundColor: "color-mix(in srgb, var(--mantine-color-brand-5) 26%, var(--mantine-color-body))",
+        }}
+      >
+        <Group justify="space-between" wrap="nowrap" gap="sm">
+          <Group gap="sm" wrap="nowrap">
+            <ThemeIcon variant="light" color="brand" size={40} radius="md">
+              <motion.span
+                style={{ display: "flex" }}
+                animate={{ rotate: turning ? 360 : servoAngle }}
+                transition={
+                  turning
+                    ? { repeat: Infinity, duration: 1.4, ease: "linear" }
+                    : { type: "spring", duration: 0.45, bounce: 0.2 }
+                }
+                aria-hidden
+              >
+                <Refresh2Regular size={22} />
+              </motion.span>
+            </ThemeIcon>
+            <Stack gap={1} style={{ minWidth: 0 }}>
+              <Text size="sm" fw={700} lh={1.1}>
+                {turning ? "Turning…" : "Turn now"}
+              </Text>
+              <Text size="xs" c="dimmed" ff="monospace" lh={1.2} truncate>
+                {schedule}
+              </Text>
+            </Stack>
+          </Group>
+          <Text ff="monospace" fw={800} size="lg" style={{ flexShrink: 0 }}>
+            {servoAngle}°
+          </Text>
+        </Group>
+      </UnstyledButton>
+    </motion.div>
   );
 }
 
@@ -115,84 +217,55 @@ export function ActuatorCard({
   onToggleLamp,
   onToggleFan,
   onTriggerServo,
+  lampHistory,
+  fanHistory,
+  turnIntervalHrs,
+  turnAngle,
 }: ActuatorCardProps) {
   return (
-    <motion.div variants={cardVariant}>
-      <Card padding="md" radius="lg" withBorder>
-        <Group justify="space-between" mb="xs">
-          <Text size="sm" fw={700}>
-            Actuators
-          </Text>
-          <Badge
-            size="xs"
-            variant="dot"
-            color={lampEnabled || fanEnabled ? "green" : "gray"}
-          >
-            {lampEnabled || fanEnabled ? "Active" : "Idle"}
-          </Badge>
-        </Group>
+    <Card>
+      <Group justify="space-between" mb="sm">
+        <Text size="sm" fw={700}>
+          Actuators
+        </Text>
+        <Text size="xs" c="dimmed">
+          tap to switch on or off
+        </Text>
+      </Group>
 
-        <Stack gap={0}>
-          <ActuatorRow
-            icon={<IconBulb size={18} stroke={1.5} />}
-            label="Lamp"
-            duty={lampDuty}
-            enabled={lampEnabled}
-            color="orange"
-            onToggle={onToggleLamp}
-          />
+      <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
+        <ArmTile
+          label="Lamp"
+          icon={<BulbRegular size={22} />}
+          color="amber"
+          enabled={lampEnabled}
+          duty={lampDuty}
+          history={lampHistory}
+          onToggle={onToggleLamp}
+        />
+        <ArmTile
+          label="Fan"
+          icon={<FanRegular size={22} />}
+          color="sage"
+          enabled={fanEnabled}
+          duty={fanDuty}
+          history={fanHistory}
+          onToggle={onToggleFan}
+        />
+      </SimpleGrid>
 
-          <ActuatorRow
-            icon={<IconPropeller size={18} stroke={1.5} />}
-            label="Fan"
-            duty={fanDuty}
-            enabled={fanEnabled}
-            color="cyan"
-            onToggle={onToggleFan}
-          />
-        </Stack>
+      <Box mt="sm">
+        <TurnerBar
+          servoAngle={servoAngle}
+          turnIntervalHrs={turnIntervalHrs}
+          turnAngle={turnAngle}
+          onTrigger={onTriggerServo}
+        />
+      </Box>
 
-        <Group
-          justify="space-between"
-          align="center"
-          mt="xs"
-          pt="xs"
-          style={{
-            borderTop: "1px solid var(--mantine-color-default-border)",
-          }}
-        >
-          <Group gap="xs" wrap="nowrap">
-            <IconRotateClockwise2
-              size={16}
-              stroke={1.5}
-              style={{
-                color: "var(--mantine-color-olive-filled)",
-                transform: `rotate(${servoAngle}deg)`,
-                transition: "transform 300ms ease",
-              }}
-            />
-            <Text size="sm" fw={600}>
-              Servo
-            </Text>
-            <Text size="xs" ff="monospace" c="dimmed">
-              {servoAngle}°
-            </Text>
-            <Badge size="xs" variant="light" color={servoAngle > 0 ? "green" : "gray"}>
-              {servoAngle > 0 ? "RUN" : "IDLE"}
-            </Badge>
-          </Group>
-          <ActionIcon
-            variant="light"
-            color="olive"
-            size="md"
-            radius="lg"
-            onClick={onTriggerServo}
-            aria-label="Trigger servo turn"
-          >
-            <IconRotateClockwise2 size={16} stroke={2} />
-          </ActionIcon>
-        </Group>
-      </Card>
-    </motion.div>
+      <Text size="xs" c="dimmed" mt="sm">
+        The switch turns the output on or off. The percentage is what the controller is driving now.
+      </Text>
+    </Card>
   );
 }

@@ -13,7 +13,7 @@
     "@mantine/charts": "^9.2.1",
     "@mantine/core": "^9.2.1",
     "@mantine/hooks": "^9.2.1",
-    "@tabler/icons-react": "^3.44.0",
+    "@mingcute/react": "^3.1.0",
     "clsx": "^2.1.1",
     "framer-motion": "^12.39.0",
     "react": "^19.2.6",

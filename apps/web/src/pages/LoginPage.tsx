@@ -3,15 +3,15 @@ import {
   TextInput,
   PasswordInput,
   Paper,
-  Title,
   Text,
   Container,
   Button,
   Alert,
 } from "@mantine/core";
-import { IconAlertCircle } from "@tabler/icons-react";
+import { AlertRegular } from "@mingcute/react/core-regular";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { BrandLockup } from "../components/BrandMark";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
@@ -67,21 +67,19 @@ export function LoginPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", backgroundColor: "var(--mantine-color-body)" }}>
-      <Container size={420} my={40} style={{ width: "100%" }}>
-        <Title ta="center" order={1} fw={900} style={{ color: "var(--mantine-color-olive-7)" }}>
-          Pinkegg
-        </Title>
-        <Text c="dimmed" size="sm" ta="center" mt={5}>
+    <div style={{ minHeight: "100dvh", display: "flex", alignItems: "center", backgroundColor: "var(--surface-raised)" }}>
+      <Container size={460} my={56} style={{ width: "100%" }}>
+        <BrandLockup height={148} />
+        <Text c="dimmed" size="md" ta="center" mt="lg">
           {mode === "login"
-            ? "Sign in to manage your smart incubators"
-            : "Create the account that will own your incubators"}
+            ? "Sign in to manage your incubators"
+            : "Create an account to pair your incubators"}
         </Text>
 
-        <Paper withBorder shadow="md" p={30} mt={30} radius="md">
+        <Paper mt="xl">
           <form onSubmit={handleSubmit}>
             {error && (
-              <Alert icon={<IconAlertCircle size={16} />} title="Error" color="red" mb="md">
+              <Alert icon={<AlertRegular size={20} />} title="Error" color="red" mb="md">
                 {error}
               </Alert>
             )}
@@ -97,7 +95,7 @@ export function LoginPage() {
 
             <TextInput
               label="Email"
-              placeholder="mai@pinkegg.app"
+              placeholder="you@pinkegg.app"
               required
               mt={mode === "register" ? "md" : undefined}
               value={email}

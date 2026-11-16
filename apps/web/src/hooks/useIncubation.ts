@@ -21,10 +21,19 @@ export interface IncubationState {
   waktu_mulai: number;
 }
 
+/**
+ * The server switches to the hatcher gain set from day 19 (`activeProfile` in
+ * `apps/api-go/incubation.go`). The payload carries no total cycle length, so
+ * the UI never claims one.
+ */
+export const HATCHER_START_DAY = 19;
+
 export function phaseLabel(hariKe: number, modeAuto: number): { label: string; color: string } {
-  if (hariKe <= 0) return { label: "Standby (H-0)", color: "gray" };
-  if (modeAuto === 1 && hariKe >= 19) return { label: `HATCHER (H-${hariKe})`, color: "orange" };
-  return { label: `SETTER (H-${hariKe})`, color: modeAuto === 1 ? "teal" : "blue" };
+  if (hariKe <= 0) return { label: "Standby", color: "gray" };
+  if (modeAuto === 1 && hariKe >= HATCHER_START_DAY) {
+    return { label: `HATCHER · day ${hariKe}`, color: "amber" };
+  }
+  return { label: `SETTER · day ${hariKe}`, color: modeAuto === 1 ? "sage" : "brand" };
 }
 
 export function useIncubation() {

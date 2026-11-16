@@ -2,34 +2,30 @@ import { type ReactNode } from "react";
 import {
   AppShell,
   Group,
-  Title,
   Stack,
-  Badge,
   Text,
   UnstyledButton,
   Box,
 } from "@mantine/core";
 import { useMediaQuery } from "@mantine/hooks";
-import {
-  IconEgg,
-  IconLayoutDashboard,
-  IconHistory,
-  IconDevices,
-  IconSettings,
-  IconLogout,
-} from "@tabler/icons-react";
+import { motion } from "framer-motion";
+import { pageEnter } from "../lib/motion";
+import { DashboardRegular, DeviceRegular, ExitRegular, HistoryRegular, Settings1Regular } from "@mingcute/react/core-regular";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useTelemetryStream } from "../hooks/useTelemetryStream";
+import { LinkTrace } from "../components/LinkTrace";
+import { BrandMark } from "../components/BrandMark";
 
 interface AppLayoutProps {
   readonly children: ReactNode;
 }
 
 const NAV_ITEMS = [
-  { label: "Dashboard", icon: IconLayoutDashboard, path: "/" },
-  { label: "History", icon: IconHistory, path: "/history" },
-  { label: "Devices", icon: IconDevices, path: "/devices" },
-  { label: "Settings", icon: IconSettings, path: "/settings" },
+  { label: "Dashboard", icon: DashboardRegular, path: "/" },
+  { label: "History", icon: HistoryRegular, path: "/history" },
+  { label: "Devices", icon: DeviceRegular, path: "/devices" },
+  { label: "Settings", icon: Settings1Regular, path: "/settings" },
 ] as const;
 
 export function AppLayout({ children }: AppLayoutProps) {
@@ -37,31 +33,29 @@ export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { lastReceivedAt } = useTelemetryStream();
+  const showWordmark = useMediaQuery("(min-width: 36em)");
 
   return (
-    <AppShell
-      header={{ height: 56 }}
+    <>
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
+      <AppShell
+      header={{ height: 68 }}
       navbar={
-        isMobile ? undefined : { width: 220, breakpoint: "sm" }
+        isMobile ? undefined : { width: 268, breakpoint: "sm" }
       }
-      padding="md"
+      padding="lg"
     >
       <AppShell.Header
         style={{
           backdropFilter: "blur(12px)",
-          backgroundColor: "color-mix(in srgb, var(--mantine-color-body) 85%, transparent)",
         }}
       >
         <Group h="100%" px="md" justify="space-between">
           <Group gap="xs">
-            <IconEgg
-              size={24}
-              stroke={1.5}
-              style={{ color: "var(--mantine-color-olive-6)" }}
-            />
-            <Title order={4} fw={800} visibleFrom="xs">
-              Pinkegg
-            </Title>
+            <BrandMark size={34} withWordmark={showWordmark} />
           </Group>
 
           <Group gap="sm">
@@ -70,16 +64,9 @@ export function AppLayout({ children }: AppLayoutProps) {
                 Hi, {user.name}
               </Text>
             )}
-            <Badge
-              variant="dot"
-              color="green"
-              size="sm"
-              radius="xl"
-            >
-              Online
-            </Badge>
+            <LinkTrace lastReceivedAt={lastReceivedAt} />
             <UnstyledButton onClick={logout} style={{ display: 'flex', alignItems: 'center' }}>
-              <IconLogout size={20} stroke={1.5} color="var(--mantine-color-red-6)" />
+              <ExitRegular size={20} color="var(--mantine-color-red-6)" />
             </UnstyledButton>
           </Group>
         </Group>
@@ -90,12 +77,12 @@ export function AppLayout({ children }: AppLayoutProps) {
           <Stack gap={4}>
             <Text
               size="xs"
-              fw={600}
+              fw={700}
               c="dimmed"
               tt="uppercase"
-              lts="0.05em"
-              mb={4}
-              px="xs"
+              lts="0.08em"
+              mb="xs"
+              px="sm"
             >
               Menu
             </Text>
@@ -105,25 +92,25 @@ export function AppLayout({ children }: AppLayoutProps) {
                 <UnstyledButton
                   key={path}
                   onClick={() => navigate(path)}
-                  px="sm"
-                  py="xs"
+                  px="md"
+                  py={10}
                   style={(theme) => ({
                     borderRadius: theme.radius.lg,
                     backgroundColor: isActive
-                      ? "var(--mantine-color-olive-light)"
+                      ? "var(--mantine-color-brand-light)"
                       : "transparent",
                     color: isActive
-                      ? "var(--mantine-color-olive-filled)"
+                      ? "var(--mantine-color-brand-filled)"
                       : "var(--mantine-color-text)",
                     fontWeight: isActive ? 600 : 400,
-                    fontSize: "0.875rem",
+                    fontSize: "1rem",
                     display: "flex",
                     alignItems: "center",
-                    gap: "0.5rem",
+                    gap: "0.75rem",
                     transition: "background-color 150ms ease",
                   })}
                 >
-                  <Icon size={18} stroke={1.5} />
+                  <Icon size={22} />
                   {label}
                 </UnstyledButton>
               );
@@ -132,13 +119,17 @@ export function AppLayout({ children }: AppLayoutProps) {
         </AppShell.Navbar>
       )}
 
-      <AppShell.Main
-        style={{
-          backgroundColor: "var(--mantine-color-body)",
-          minHeight: "100dvh",
-        }}
-      >
-        {children}
+      <AppShell.Main id="main-content" tabIndex={-1} style={{ minHeight: "100dvh" }}>
+        {/* Keep content readable on wide screens instead of stretching edge to edge */}
+        <motion.div
+          key={location.pathname}
+          variants={pageEnter}
+          initial="hidden"
+          animate="show"
+          style={{ width: "100%", maxWidth: 1220, marginInline: "auto" }}
+        >
+          {children}
+        </motion.div>
       </AppShell.Main>
 
       {isMobile && (
@@ -175,25 +166,25 @@ export function AppLayout({ children }: AppLayoutProps) {
                   flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: 4,
-                  padding: "8px 20px",
+                  gap: 6,
+                  padding: "10px 22px",
                   borderRadius: "1rem",
                   color: isActive
-                    ? "var(--mantine-color-olive-filled)"
+                    ? "var(--mantine-color-brand-filled)"
                     : "var(--mantine-color-dimmed)",
                   backgroundColor: isActive
-                    ? "var(--mantine-color-olive-light)"
+                    ? "var(--mantine-color-brand-light)"
                     : "transparent",
-                  transition: "all 200ms ease",
-                  minWidth: 64,
+                  transition: "background-color 200ms ease, color 200ms ease",
+                  minWidth: 74,
                 }}
               >
-                <Icon size={22} stroke={isActive ? 2.2 : 1.5} />
+                <Icon size={26} />
                 <Text
                   size="xs"
                   fw={isActive ? 700 : 500}
                   lh={1}
-                  style={{ fontSize: "0.6rem", letterSpacing: "0.02em" }}
+                  style={{ fontSize: "0.72rem", letterSpacing: "0.02em" }}
                 >
                   {label}
                 </Text>
@@ -202,6 +193,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           })}
         </Box>
       )}
-    </AppShell>
+      </AppShell>
+    </>
   );
 }

@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import {
   Stack,
-  Title,
   Card,
   NumberInput,
   Button,
@@ -14,14 +13,18 @@ import {
   useMantineColorScheme,
 } from "@mantine/core";
 import {
-  IconDeviceFloppy,
-  IconMoon,
-  IconSun,
-  IconAdjustments,
-  IconRefresh,
-} from "@tabler/icons-react";
+  ChipRegular,
+  Filter2Regular,
+  MoonRegular,
+  Refresh2Regular,
+  SaveRegular,
+  SunRegular,
+} from "@mingcute/react/core-regular";
+import { PageHeader } from "../components/PageHeader";
+import { SectionHeader } from "../components/dashboard/SectionHeader";
 import { IncubationCard } from "../components/dashboard";
-import { useIncubation } from "../hooks/useIncubation";
+import { HATCHER_START_DAY, useIncubation } from "../hooks/useIncubation";
+import { refreshDeviceSettings } from "../hooks/useTelemetryStream";
 import { useAuth } from "../contexts/AuthContext";
 
 interface PidProfiles {
@@ -48,6 +51,9 @@ export function SettingsPage() {
   const { colorScheme, toggleColorScheme } = useMantineColorScheme();
   const { apiFetch } = useAuth();
   const { deviceId, incubation, refresh } = useIncubation();
+  const hatcherActive = Boolean(
+    incubation && incubation.mode_auto === 1 && incubation.hari_ke >= HATCHER_START_DAY,
+  );
 
   const [profiles, setProfiles] = useState<PidProfiles>({
     target_suhu_set: 37.8,
@@ -136,40 +142,45 @@ export function SettingsPage() {
       .finally(() => {
         setSaving(null);
         refresh();
+        refreshDeviceSettings();
       });
   }, [deviceId, settings, refresh]);
 
   return (
-    <Stack gap="md" p={{ base: "xs", sm: "md" }}>
-      <Group justify="space-between" align="center">
-        <Title order={3} fw={700}>
-          Settings
-        </Title>
-        <Button
-          variant="subtle"
-          size="xs"
-          leftSection={<IconRefresh size={14} />}
-          onClick={() => refresh()}
-          disabled={!deviceId}
-        >
-          Refresh
-        </Button>
-      </Group>
+    <Stack gap="lg" p={{ base: "xs", sm: "md" }}>
+      <PageHeader
+        title="Settings"
+        subtitle={incubation ? `day ${incubation.hari_ke} · ${hatcherActive ? "hatcher" : "setter"} phase` : "no cycle yet"}
+        actions={
+          <Button
+            variant="default"
+            size="compact-sm"
+            leftSection={<Refresh2Regular size={16} />}
+            onClick={() => refresh()}
+            disabled={!deviceId}
+          >
+            Refresh
+          </Button>
+        }
+      />
 
       <IncubationCard />
 
-      <Card padding="md" radius="lg" withBorder>
-        <Group gap="xs" mb="xs">
-          <IconAdjustments size={18} stroke={1.5} />
-          <Text size="sm" fw={700}>
-            PID Profiles (Setter / Hatcher)
-          </Text>
-        </Group>
+      <Card>
+        <SectionHeader
+          icon={<Filter2Regular size={18} />}
+          title="PID profiles"
+          trailing={
+            <Text size="xs" c="dimmed">
+              setter / hatcher
+            </Text>
+          }
+        />
         <Text size="xs" c="dimmed" mb="md">
           Setter applies on days 1–18, Hatcher on day 19+. Active gains follow the phase automatically.
         </Text>
         <Text size="xs" c="dimmed" fw={600} mb="xs">
-          Setter (H-1…H-18)
+          Setter (day 1 to 18)
         </Text>
         <SimpleGrid cols={{ base: 2, xs: 4 }} spacing="xs" mb="md">
           <NumberInput
@@ -223,7 +234,7 @@ export function SettingsPage() {
         </SimpleGrid>
         <Divider mb="md" />
         <Text size="xs" c="dimmed" fw={600} mb="xs">
-          Hatcher (H-19+)
+          Hatcher (day 19+)
         </Text>
         <SimpleGrid cols={{ base: 2, xs: 4 }} spacing="xs" mb="md">
           <NumberInput
@@ -277,30 +288,35 @@ export function SettingsPage() {
         </SimpleGrid>
         <Button
           fullWidth
-          leftSection={<IconDeviceFloppy size={16} />}
+          leftSection={<SaveRegular size={19} />}
           onClick={saveProfiles}
           loading={saving === "profiles"}
           disabled={!deviceId}
         >
-          Save PID Profiles
+          Save PID profiles
         </Button>
       </Card>
 
       <Accordion
         variant="separated"
-        radius="lg"
+        radius="xl"
         chevronPosition="left"
         styles={{
-          item: { overflow: "hidden" },
-          control: { borderRadius: "var(--mantine-radius-lg)" },
+          item: {
+            overflow: "hidden",
+            backgroundColor: "var(--surface-raised)",
+            border: "1px solid var(--mantine-color-default-border)",
+          },
+          control: { borderRadius: "var(--mantine-radius-xl)" },
+          chevron: { color: "var(--mantine-color-brand-filled)" },
         }}
       >
         <Accordion.Item value="env">
           <Accordion.Control
-            icon={<IconAdjustments size={18} stroke={1.5} />}
+            icon={<Filter2Regular size={21} />}
           >
-            <Text size="sm" fw={600}>
-              Humidity & Turning
+            <Text size="md" fw={700}>
+              Humidity &amp; Turning
             </Text>
           </Accordion.Control>
           <Accordion.Panel>
@@ -386,7 +402,7 @@ export function SettingsPage() {
               <Button
                 fullWidth
                 variant="light"
-                leftSection={<IconDeviceFloppy size={16} />}
+                leftSection={<SaveRegular size={19} />}
                 onClick={saveSettings}
                 loading={saving === "settings"}
                 disabled={!deviceId}
@@ -398,18 +414,16 @@ export function SettingsPage() {
         </Accordion.Item>
       </Accordion>
 
-      <Card padding="md" radius="lg" withBorder>
-        <Text size="sm" fw={700} mb="md">
-          Appearance
-        </Text>
+      <Card>
+        <SectionHeader icon={<SunRegular size={18} />} title="Appearance" />
         <Group justify="space-between">
           <Group gap="xs">
             {colorScheme === "dark" ? (
-              <IconMoon size={16} stroke={1.5} />
+              <MoonRegular size={19} />
             ) : (
-              <IconSun size={16} stroke={1.5} />
+              <SunRegular size={19} />
             )}
-            <Text size="sm">Dark Mode</Text>
+            <Text size="sm">Dark mode</Text>
           </Group>
           <Switch
             checked={colorScheme === "dark"}
@@ -419,11 +433,8 @@ export function SettingsPage() {
         </Group>
       </Card>
 
-      <Card padding="md" radius="lg" withBorder>
-        <Text size="sm" fw={700} mb="xs">
-          Device Info
-        </Text>
-        <Divider mb="sm" />
+      <Card>
+        <SectionHeader icon={<ChipRegular size={18} />} title="Device info" />
         <Stack gap={4}>
           <Group justify="space-between">
             <Text size="xs" c="dimmed">Device ID</Text>

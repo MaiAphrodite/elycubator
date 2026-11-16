@@ -15,6 +15,9 @@ build/
 # Internal / Temporarily Ignored
 temp_scripts/
 
+# Local dev rig: scratch SQLite database, binaries, logs and pidfiles
+.local-dev/
+
 # Logs
 logs/
 *.log

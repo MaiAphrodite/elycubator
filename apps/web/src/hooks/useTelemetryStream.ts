@@ -1,6 +1,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import type { TelemetryReading } from "../types/telemetry";
 import { apiFetch, getAccessToken, refreshSession } from "../lib/api";
+import { parseServerTimestamp } from "../lib/time";
 
 const MAX_HISTORY = 50;
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
@@ -20,12 +21,23 @@ interface LiveMessage {
   };
 }
 
+/** The slice of `/device/:id/settings` the dashboard reads. */
+export interface DeviceSettingsSnapshot {
+  readonly targetTemp: number;
+  readonly targetHumidity: number;
+  readonly turnIntervalHrs: number;
+  readonly turnAngle: number;
+}
+
 interface TelemetryState {
   current: TelemetryReading;
   history: readonly TelemetryReading[];
   deviceId: string | null;
   lampEnabled: boolean;
   fanEnabled: boolean;
+  settings: DeviceSettingsSnapshot | null;
+  /** `Date.now()` of the last frame, so the UI can show link age. */
+  lastReceivedAt: number | null;
 }
 
 const EMPTY: TelemetryState = {
@@ -41,10 +53,12 @@ const EMPTY: TelemetryState = {
   deviceId: null,
   lampEnabled: true,
   fanEnabled: true,
+  settings: null,
+  lastReceivedAt: null,
 };
 
 let state: TelemetryState = EMPTY;
-let listeners = new Set<() => void>();
+const listeners = new Set<() => void>();
 let socket: WebSocket | null = null;
 let subscribers = 0;
 let seededDevice: string | null = null;
@@ -71,12 +85,27 @@ function seedSettings(deviceId: string) {
     .then((json) => {
       if (!json?.success || !json.data) return;
       const s = json.data;
+      // The Go handler marshals its struct with Go field names; the camelCase
+      // fallbacks keep older payloads working.
+      const pick = (pascal: string, camel: string) => s[pascal] ?? s[camel];
       setState({
-        lampEnabled: Boolean(s.LampEnabled ?? s.lampEnabled ?? false),
-        fanEnabled: Boolean(s.FanEnabled ?? s.fanEnabled ?? false),
+        lampEnabled: Boolean(pick("LampEnabled", "lampEnabled")),
+        fanEnabled: Boolean(pick("FanEnabled", "fanEnabled")),
+        settings: {
+          targetTemp: Number(pick("TargetTemp", "targetTemp") ?? 0),
+          targetHumidity: Number(pick("TargetHumidity", "targetHumidity") ?? 0),
+          turnIntervalHrs: Number(pick("TurnIntervalHrs", "turnIntervalHrs") ?? 0),
+          turnAngle: Number(pick("TurnAngle", "turnAngle") ?? 0),
+        },
       });
     })
     .catch(() => {});
+}
+
+/** Re-read settings after a write elsewhere (the settings screen). */
+export function refreshDeviceSettings() {
+  seededSettings = null;
+  if (state.deviceId) seedSettings(state.deviceId);
 }
 
 function seedHistory(deviceId: string) {
@@ -87,10 +116,11 @@ function seedHistory(deviceId: string) {
     .then((json) => {
       if (!json?.success || !Array.isArray(json.data)) return;
       const seeded: TelemetryReading[] = json.data.map((row: any) => ({
-        time: new Date(row.timestamp).toLocaleTimeString([], {
+        time: parseServerTimestamp(String(row.timestamp)).toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
           second: "2-digit",
+          hour12: false,
         }),
         temperature: row.temperature ?? 0,
         humidity: row.humidity ?? 0,
@@ -139,10 +169,12 @@ function connect() {
         hour: "2-digit",
         minute: "2-digit",
         second: "2-digit",
+        hour12: false,
       }),
       ...msg.data,
     };
     patch.current = reading;
+    patch.lastReceivedAt = Date.now();
     const next = [...state.history, reading];
     patch.history = next.length > MAX_HISTORY ? next.slice(next.length - MAX_HISTORY) : next;
     setState(patch);
@@ -273,6 +305,8 @@ export function useTelemetryStream() {
     deviceId: snap.deviceId,
     lampEnabled: snap.lampEnabled,
     fanEnabled: snap.fanEnabled,
+    settings: snap.settings,
+    lastReceivedAt: snap.lastReceivedAt,
     setLampEnabled,
     setFanEnabled,
     triggerServo,

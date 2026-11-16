@@ -1,12 +1,11 @@
 import {
   Stack,
-  Title,
   Text,
   Card,
   Group,
   Badge,
-  ActionIcon,
-  useMantineColorScheme,
+  Button,
+  useComputedColorScheme,
 } from "@mantine/core";
 import {
   AreaChart,
@@ -19,15 +18,29 @@ import {
   ReferenceLine,
 } from "recharts";
 import type { TooltipContentProps } from "recharts";
-import { IconHistory, IconDownload } from "@tabler/icons-react";
+import {
+  ChartLineRegular,
+  DownloadRegular,
+  HistoryRegular,
+  ListCheck2Regular,
+} from "@mingcute/react/core-regular";
+import { PageHeader } from "../components/PageHeader";
+import { SectionHeader } from "../components/dashboard/SectionHeader";
 import { useTelemetryStream } from "../hooks/useTelemetryStream";
 import type { TelemetryReading } from "../types/telemetry";
 
 const COLORS = {
-  temperature: "#5F7038",
-  humidity: "#8B9957",
-  target: "#C4735A",
+  temperature: "#C1731F",
+  humidity: "#6C8455",
+  target: "#A29277",
 } as const;
+
+/* The client buffer holds 50 readings at roughly 2s, so the window is about
+   100 seconds. Minute-resolution ticks would all read the same, which is why
+   the axis keeps seconds and relies on a wide gap instead. */
+function axisTime(label: string): string {
+  return label;
+}
 
 function ChartTooltip({
   active,
@@ -109,7 +122,7 @@ function TelemetryMiniChart({
       <ResponsiveContainer width="100%" height={140}>
         <AreaChart
           data={data as TelemetryReading[]}
-          margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
+          margin={{ top: 6, right: 6, left: 0, bottom: 0 }}
         >
           <defs>
             <linearGradient id={`grad-${dataKey}`} x1="0" y1="0" x2="0" y2="1">
@@ -117,26 +130,25 @@ function TelemetryMiniChart({
               <stop offset="95%" stopColor={color} stopOpacity={0} />
             </linearGradient>
           </defs>
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke={gridColor}
-            vertical={false}
-          />
+          <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
           <XAxis
             dataKey="time"
-            tick={{ fontSize: 10, fill: axisColor }}
+            tick={{ fontSize: 11, fill: axisColor }}
             tickLine={false}
             axisLine={false}
             interval="preserveStartEnd"
-            minTickGap={40}
+            minTickGap={68}
+            tickFormatter={axisTime}
+            tickMargin={6}
           />
           <YAxis
             domain={domain}
-            tick={{ fontSize: 10, fill: axisColor }}
+            tick={{ fontSize: 11, fill: axisColor }}
             tickLine={false}
             axisLine={false}
-            width={36}
+            width={44}
             tickCount={4}
+            tickMargin={4}
           />
           {targetValue !== undefined && (
             <ReferenceLine
@@ -170,49 +182,59 @@ function TelemetryMiniChart({
 
 export function HistoryPage() {
   const { history, exportAsCsv } = useTelemetryStream();
-  const { colorScheme } = useMantineColorScheme();
+  // useMantineColorScheme() reports "auto" when the user never touched the
+  // toggle, which made the chart draw light-mode axis labels on a dark card.
+  const colorScheme = useComputedColorScheme("light");
   const isDark = colorScheme === "dark";
-  const gridColor = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
-  const axisColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
+  const gridColor = isDark ? "rgba(255,255,255,0.13)" : "rgba(56,50,41,0.10)";
+  const axisColor = isDark ? "rgba(255,255,255,0.70)" : "rgba(56,50,41,0.66)";
 
   return (
-    <Stack gap="md" p={{ base: "xs", sm: "md" }}>
-      <Group justify="space-between" align="center">
-        <Title order={3} fw={700}>
-          History
-        </Title>
-        <ActionIcon
-          variant="default"
-          size="md"
-          onClick={exportAsCsv}
-          aria-label="Export CSV"
-        >
-          <IconDownload size={16} />
-        </ActionIcon>
-      </Group>
+    <Stack gap="lg" p={{ base: "xs", sm: "md" }}>
+      <PageHeader
+        title="History"
+        subtitle={`${history.length} readings`}
+        actions={
+          <Button
+            variant="default"
+            size="compact-sm"
+            leftSection={<DownloadRegular size={16} />}
+            onClick={exportAsCsv}
+            disabled={history.length === 0}
+            aria-label={`Export ${history.length} readings as CSV`}
+          >
+            {history.length} rows
+          </Button>
+        }
+      />
 
       {history.length === 0 ? (
-        <Card padding="xl" radius="lg" withBorder>
+        <Card padding="xl">
           <Stack align="center" gap="sm" py="xl">
-            <IconHistory
+            <HistoryRegular
               size={48}
-              stroke={1}
               color="var(--mantine-color-dimmed)"
             />
             <Text c="dimmed" ta="center">
-              No telemetry data recorded yet.
+              No readings yet.
             </Text>
             <Text size="xs" c="dimmed" ta="center">
-              Data will appear here as the incubator sends readings.
+              Readings appear here once the incubator sends data.
             </Text>
           </Stack>
         </Card>
       ) : (
         <>
-          <Card padding="md" radius="lg" withBorder>
-            <Title order={5} fw={600} mb="sm">
-              Live Charts
-            </Title>
+          <Card>
+            <SectionHeader
+              icon={<ChartLineRegular size={18} />}
+              title="Charts"
+              trailing={
+                <Text size="xs" c="dimmed">
+                  last {history.length} readings
+                </Text>
+              }
+            />
             <Stack gap="md">
               <TelemetryMiniChart
                 data={history}
@@ -239,16 +261,23 @@ export function HistoryPage() {
             </Stack>
           </Card>
 
-          <Card padding="md" radius="lg" withBorder>
-            <Title order={5} fw={600} mb="sm">
-              Readings
-            </Title>
+          <Card>
+            <SectionHeader
+              icon={<ListCheck2Regular size={18} />}
+              title="Readings"
+              trailing={
+                <Text size="xs" c="dimmed" ff="monospace">
+                  newest first
+                </Text>
+              }
+            />
             <Stack gap="xs">
               {[...history].reverse().map((reading, i) => (
                 <Group
                   key={`${reading.time}-${i}`}
                   justify="space-between"
-                  wrap="nowrap"
+                  wrap="wrap"
+                  gap="xs"
                   py={4}
                   style={{
                     borderBottom:
@@ -266,17 +295,17 @@ export function HistoryPage() {
                   >
                     {reading.time}
                   </Text>
-                  <Group gap={6} wrap="nowrap">
-                    <Badge size="sm" variant="light" color="teal" ff="monospace">
+                  <Group gap={6} wrap="wrap">
+                    <Badge size="sm" variant="light" color="sage" ff="monospace">
                       {reading.temperature.toFixed(1)}°C
                     </Badge>
-                    <Badge size="sm" variant="light" color="blue" ff="monospace">
+                    <Badge size="sm" variant="light" color="brand" ff="monospace">
                       {reading.humidity.toFixed(1)}%
                     </Badge>
-                    <Badge size="sm" variant="light" color="orange" ff="monospace">
+                    <Badge size="sm" variant="light" color="amber" ff="monospace">
                       💡{reading.lampDuty.toFixed(0)}%
                     </Badge>
-                    <Badge size="sm" variant="light" color="cyan" ff="monospace">
+                    <Badge size="sm" variant="light" color="sage" ff="monospace">
                       🌀{reading.fanDuty.toFixed(0)}%
                     </Badge>
                   </Group>
