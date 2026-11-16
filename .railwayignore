@@ -1,0 +1,18 @@
+# Keep the upload small: Railway builds from this context with the Dockerfile,
+# which installs its own dependencies. Mirrors .dockerignore plus the local
+# toolchains this workstation keeps in the tree.
+node_modules
+**/node_modules
+.git
+temp_scripts
+.local-dev
+.arduino-build
+.arduino-build-*
+firmware
+dist
+**/dist
+*.tar.gz
+*.log
+*.meta
+apps/api-legacy
+apps/simulator
