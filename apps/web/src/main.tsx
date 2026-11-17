@@ -8,7 +8,9 @@ import "./index.css";
 import { theme } from "./theme";
 import App from "./App";
 import { registerServiceWorker } from "./lib/pwa";
+import { initInstallCapture } from "./lib/install";
 
+initInstallCapture();
 registerServiceWorker();
 
 createRoot(document.getElementById("root")!).render(

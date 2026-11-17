@@ -1,44 +1,66 @@
-import { useEffect, useState } from "react";
-import { ActionIcon, Tooltip } from "@mantine/core";
+import { useSyncExternalStore, useState } from "react";
+import { ActionIcon, Popover, Stack, Text, Tooltip } from "@mantine/core";
 import { DownloadRegular } from "@mingcute/react/core-regular";
+import {
+  hasDeferredPrompt,
+  installHint,
+  isStandalone,
+  promptInstall,
+  subscribeInstall,
+} from "../lib/install";
 
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+/** Subscribe to the deferred-install state so the button re-renders. */
+function useInstallState(): { available: boolean; standalone: boolean } {
+  const version = useSyncExternalStore(
+    subscribeInstall,
+    () => String(hasDeferredPrompt()) + String(isStandalone()),
+    () => "falsefalse",
+  );
+  return { available: version.startsWith("true"), standalone: version.endsWith("true") };
 }
 
 /**
- * Shows an install button only once the browser offers a prompt, which is the
- * only way to install from inside the page. Handy on a demo table: one tap and
- * the dashboard lands on the home screen.
+ * Always offers a way to install. Chrome on Android stopped showing its own
+ * banner, and the native prompt is only replayable once, so when there is no
+ * stored prompt this falls back to instructions instead of silence.
  */
 export function InstallButton() {
-  const [prompt, setPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const { available, standalone } = useInstallState();
+  const [opened, setOpened] = useState(false);
 
-  useEffect(() => {
-    const onPrompt = (event: Event) => {
-      event.preventDefault();
-      setPrompt(event as BeforeInstallPromptEvent);
-    };
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    return () => window.removeEventListener("beforeinstallprompt", onPrompt);
-  }, []);
-
-  if (!prompt) return null;
+  if (standalone) return null;
 
   return (
-    <Tooltip label="Install as an app">
-      <ActionIcon
-        variant="default"
-        aria-label="Install PinkEggs as an app"
-        onClick={async () => {
-          await prompt.prompt();
-          await prompt.userChoice;
-          setPrompt(null);
-        }}
-      >
-        <DownloadRegular size={20} />
-      </ActionIcon>
-    </Tooltip>
+    <Popover opened={opened} onChange={setOpened} position="bottom-end" width={280} radius="lg">
+      <Popover.Target>
+        <Tooltip label="Install as an app" disabled={opened}>
+          <ActionIcon
+            variant="default"
+            aria-label="Install PinkEggs as an app"
+            onClick={() => {
+              if (!promptInstall()) setOpened(true);
+            }}
+          >
+            <DownloadRegular size={20} />
+          </ActionIcon>
+        </Tooltip>
+      </Popover.Target>
+
+      <Popover.Dropdown p="sm">
+        <Stack gap={6}>
+          <Text size="sm" fw={700}>
+            Install PinkEggs
+          </Text>
+          <Text size="xs" c="dimmed">
+            {available
+              ? "Tap Install to add it to your home screen."
+              : installHint()}
+          </Text>
+          <Text size="xs" c="dimmed">
+            It opens full screen with its own icon, like a normal app.
+          </Text>
+        </Stack>
+      </Popover.Dropdown>
+    </Popover>
   );
 }
