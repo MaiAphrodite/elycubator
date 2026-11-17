@@ -149,7 +149,7 @@ export function SettingsPage() {
   return (
     <Stack gap="lg" p={{ base: "xs", sm: "md" }}>
       <PageHeader
-        title="Settings"
+        title="Pengaturan"
         subtitle={incubation ? `day ${incubation.hari_ke} · ${hatcherActive ? "hatcher" : "setter"} phase` : "no cycle yet"}
         actions={
           <Button
@@ -169,7 +169,7 @@ export function SettingsPage() {
       <Card>
         <SectionHeader
           icon={<Filter2Regular size={18} />}
-          title="PID profiles"
+          title="Profil PID"
           trailing={
             <Text size="xs" c="dimmed">
               setter / hatcher
@@ -323,7 +323,7 @@ export function SettingsPage() {
             <Stack gap="md">
               <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
                 <NumberInput
-                  label="Target Humidity (%)"
+                  label="Target Kelembapan (%)"
                   value={settings.targetHumidity}
                   onChange={(v) => update("targetHumidity", v)}
                   decimalScale={1}
@@ -377,7 +377,7 @@ export function SettingsPage() {
               <Divider />
               <SimpleGrid cols={{ base: 2 }} spacing="sm">
                 <NumberInput
-                  label="Turn Interval (hours)"
+                  label="Interval putar (jam)"
                   value={settings.turnIntervalHrs}
                   onChange={(v) => update("turnIntervalHrs", v)}
                   step={1}
@@ -388,7 +388,7 @@ export function SettingsPage() {
                   styles={{ input: { fontFamily: "var(--font-mono)" } }}
                 />
                 <NumberInput
-                  label="Turn Angle (°)"
+                  label="Sudut putar (°)"
                   value={settings.turnAngle}
                   onChange={(v) => update("turnAngle", v)}
                   step={5}
@@ -415,7 +415,7 @@ export function SettingsPage() {
       </Accordion>
 
       <Card>
-        <SectionHeader icon={<SunRegular size={18} />} title="Appearance" />
+        <SectionHeader icon={<SunRegular size={18} />} title="Tampilan" />
         <Group justify="space-between">
           <Group gap="xs">
             {colorScheme === "dark" ? (
@@ -423,7 +423,7 @@ export function SettingsPage() {
             ) : (
               <SunRegular size={19} />
             )}
-            <Text size="sm">Dark mode</Text>
+            <Text size="sm">Mode gelap</Text>
           </Group>
           <Switch
             checked={colorScheme === "dark"}
@@ -434,14 +434,14 @@ export function SettingsPage() {
       </Card>
 
       <Card>
-        <SectionHeader icon={<ChipRegular size={18} />} title="Device info" />
+        <SectionHeader icon={<ChipRegular size={18} />} title="Info perangkat" />
         <Stack gap={4}>
           <Group justify="space-between">
-            <Text size="xs" c="dimmed">Device ID</Text>
+            <Text size="xs" c="dimmed">ID perangkat</Text>
             <Text size="xs" ff="monospace">{deviceId ?? "—"}</Text>
           </Group>
           <Group justify="space-between">
-            <Text size="xs" c="dimmed">Cycle Start</Text>
+            <Text size="xs" c="dimmed">Mulai siklus</Text>
             <Text size="xs" ff="monospace">
               {incubation && incubation.waktu_mulai > 0
                 ? new Date(incubation.waktu_mulai * 1000).toLocaleString()

@@ -36,7 +36,7 @@ export function CycleCard({ hariKe, modeAuto, startedAt, targetTemp }: CycleCard
       <Card className="stat-card" h="100%">
         <SectionHeader
           icon={<EggRegular size={18} />}
-          title="Incubation"
+          title="Inkubasi"
           trailing={
             <Badge size="sm" variant="light" color={modeAuto === 1 ? "sage" : "amber"} radius="xl">
               {modeAuto === 1 ? "Auto" : "Manual"}
@@ -62,7 +62,7 @@ export function CycleCard({ hariKe, modeAuto, startedAt, targetTemp }: CycleCard
             size={6}
             radius="xl"
             transitionDuration={300}
-            aria-label="Progress to the hatcher phase"
+            aria-label="Progres menuju fase hatcher"
           />
           <Text size="xs" c="dimmed" mt={6}>
             {caption}

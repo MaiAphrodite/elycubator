@@ -79,15 +79,15 @@ export function LoginPage() {
         <Paper mt="xl">
           <form onSubmit={handleSubmit}>
             {error && (
-              <Alert icon={<AlertRegular size={20} />} title="Error" color="red" mb="md">
+              <Alert icon={<AlertRegular size={20} />} title="Kesalahan" color="red" mb="md">
                 {error}
               </Alert>
             )}
 
             {mode === "register" && (
               <TextInput
-                label="Name"
-                placeholder="Your name"
+                label="Nama"
+                placeholder="Nama Anda"
                 value={name}
                 onChange={(event) => setName(event.currentTarget.value)}
               />
@@ -103,8 +103,8 @@ export function LoginPage() {
             />
 
             <PasswordInput
-              label="Password"
-              placeholder={mode === "register" ? "At least 8 characters" : "Your password"}
+              label="Kata sandi"
+              placeholder={mode === "register" ? "At least 8 characters" : "Kata sandi Anda"}
               required
               mt="md"
               value={password}

@@ -235,7 +235,7 @@ export function ActuatorCard({
 
       <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="sm">
         <ArmTile
-          label="Lamp"
+          label="Lampu"
           icon={<BulbRegular size={22} />}
           color="amber"
           enabled={lampEnabled}
@@ -244,7 +244,7 @@ export function ActuatorCard({
           onToggle={onToggleLamp}
         />
         <ArmTile
-          label="Fan"
+          label="Kipas"
           icon={<FanRegular size={22} />}
           color="sage"
           enabled={fanEnabled}

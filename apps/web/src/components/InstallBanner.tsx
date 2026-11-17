@@ -91,7 +91,7 @@ export function InstallBanner() {
           >
             {expanded ? "Got it" : "Install"}
           </Button>
-          <ActionIcon variant="subtle" color="gray" onClick={dismiss} aria-label="Dismiss install prompt">
+          <ActionIcon variant="subtle" color="gray" onClick={dismiss} aria-label="Tutup petunjuk pemasangan">
             <CloseRegular size={18} />
           </ActionIcon>
         </Group>

@@ -192,7 +192,7 @@ export function HistoryPage() {
   return (
     <Stack gap="lg" p={{ base: "xs", sm: "md" }}>
       <PageHeader
-        title="History"
+        title="Riwayat"
         subtitle={`${history.length} readings`}
         actions={
           <Button
@@ -228,7 +228,7 @@ export function HistoryPage() {
           <Card>
             <SectionHeader
               icon={<ChartLineRegular size={18} />}
-              title="Charts"
+              title="Grafik"
               trailing={
                 <Text size="xs" c="dimmed">
                   last {history.length} readings
@@ -240,7 +240,7 @@ export function HistoryPage() {
                 data={history}
                 dataKey="temperature"
                 color={COLORS.temperature}
-                label="Temperature"
+                label="Suhu"
                 unit="°C"
                 domain={["dataMin - 0.5", "dataMax + 0.5"]}
                 targetValue={37.5}
@@ -251,7 +251,7 @@ export function HistoryPage() {
                 data={history}
                 dataKey="humidity"
                 color={COLORS.humidity}
-                label="Humidity"
+                label="Kelembapan"
                 unit="%"
                 domain={["dataMin - 2.0", "dataMax + 2.0"]}
                 targetValue={55.0}
@@ -264,7 +264,7 @@ export function HistoryPage() {
           <Card>
             <SectionHeader
               icon={<ListCheck2Regular size={18} />}
-              title="Readings"
+              title="Pembacaan"
               trailing={
                 <Text size="xs" c="dimmed" ff="monospace">
                   newest first

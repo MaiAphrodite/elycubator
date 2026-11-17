@@ -85,7 +85,7 @@ export function AssistantPanel({ deviceId }: { readonly deviceId: string | null 
     <Card>
       <SectionHeader
         icon={<AlertRegular size={18} />}
-        title="Ask about this incubator"
+        title="Tanya tentang inkubator ini"
         trailing={
           reply ? (
             <Text size="xs" c="dimmed">
@@ -123,7 +123,7 @@ export function AssistantPanel({ deviceId }: { readonly deviceId: string | null 
           <TextInput
             value={question}
             onChange={(event) => setQuestion(event.currentTarget.value)}
-            placeholder="Or ask something else, e.g. how long was the lamp at full duty?"
+            placeholder="Atau tanyakan yang lain, misalnya berapa lama lampu menyala penuh?"
             style={{ flex: 1 }}
             maxLength={300}
           />
@@ -131,7 +131,7 @@ export function AssistantPanel({ deviceId }: { readonly deviceId: string | null 
             type="submit"
             variant="default"
             size="lg"
-            aria-label="Ask"
+            aria-label="Tanya"
             loading={busy}
             disabled={!activeDeviceId || question.trim().length === 0}
           >

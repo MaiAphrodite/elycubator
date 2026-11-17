@@ -58,7 +58,7 @@ export function DashboardPage() {
     <motion.div variants={staggerContainer} initial="hidden" animate="show">
       <Stack gap="lg" p={{ base: "xs", sm: "md" }}>
         <PageHeader
-          title="Dashboard"
+          title="Dasbor"
           subtitle={`last reading ${current.time}`}
           actions={
             <Button
@@ -81,7 +81,7 @@ export function DashboardPage() {
             color="amber"
             variant="light"
             radius="lg"
-            title="No new data"
+            title="Tidak ada data baru"
           >
             <Text size="sm">
               Last reading was {formatElapsed(frameAge)} ago. Values below may be out of
@@ -94,7 +94,7 @@ export function DashboardPage() {
         <SimpleGrid cols={{ base: 2, lg: 3 }} spacing={isPhone ? "xs" : "md"}>
           <StatCard
             compact={isPhone}
-            label="Temperature"
+            label="Suhu"
             value={hasData ? `${current.temperature.toFixed(1)}°C` : "—"}
             subtitle={
               targetTemp
@@ -112,7 +112,7 @@ export function DashboardPage() {
           />
           <StatCard
             compact={isPhone}
-            label="Humidity"
+            label="Kelembapan"
             value={hasData ? `${current.humidity.toFixed(1)}%` : "—"}
             subtitle={
               targetHumidity

@@ -104,7 +104,7 @@ export function DevicesPage() {
   return (
     <Stack gap="lg" p={{ base: "xs", sm: "md" }}>
       <PageHeader
-        title="Devices"
+        title="Perangkat"
         subtitle={`${devices.length} claimed, ${pending.length} waiting`}
         actions={
           <Button
@@ -119,18 +119,18 @@ export function DevicesPage() {
       />
 
       {error && (
-        <Alert icon={<AlertRegular size={19} />} title="Error" color="red">
+        <Alert icon={<AlertRegular size={19} />} title="Kesalahan" color="red">
           {error}
         </Alert>
       )}
       {note && (
-        <Alert icon={<CheckCircleRegular size={19} />} title="Done" color="sage">
+        <Alert icon={<CheckCircleRegular size={19} />} title="Selesai" color="sage">
           {note}
         </Alert>
       )}
 
       <Card>
-        <SectionHeader icon={<DeviceRegular size={18} />} title="Add a device" />
+        <SectionHeader icon={<DeviceRegular size={18} />} title="Tambah perangkat" />
         <Text size="xs" c="dimmed" mb="md">
           Power the incubator and wait for it to connect. The PIN on its screen proves
           you have physical access.
@@ -138,7 +138,7 @@ export function DevicesPage() {
         <form onSubmit={claim}>
           <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="xs" mb="md">
             <TextInput
-              label="Pairing PIN"
+              label="PIN pasangan"
               placeholder="205026"
               value={pin}
               onChange={(event) => setPin(event.currentTarget.value)}
@@ -148,8 +148,8 @@ export function DevicesPage() {
               styles={{ input: { fontFamily: "var(--font-mono)" } }}
             />
             <TextInput
-              label="Nickname"
-              placeholder="Incubator 1"
+              label="Nama panggilan"
+              placeholder="Inkubator 1"
               value={nickname}
               onChange={(event) => setNickname(event.currentTarget.value)}
               maxLength={40}
@@ -170,7 +170,7 @@ export function DevicesPage() {
       <Card>
         <SectionHeader
           icon={<InformationRegular size={18} />}
-          title="Waiting to be claimed"
+          title="Menunggu diklaim"
           trailing={
             pending.length > 0 ? (
               <Badge color="amber" variant="light" size="sm" tt="none">
@@ -211,7 +211,7 @@ export function DevicesPage() {
       </Card>
 
       <Card>
-        <SectionHeader icon={<CheckCircleRegular size={18} />} title="My devices" />
+        <SectionHeader icon={<CheckCircleRegular size={18} />} title="Perangkat saya" />
         <Divider mb="sm" />
         {devices.length === 0 ? (
           <Text size="xs" c="dimmed">

@@ -337,7 +337,7 @@ func askModel(ctx context.Context, key string, facts assistFacts, question strin
 		return "", err
 	}
 
-	system := "You answer questions about one egg incubator using ONLY the FACTS JSON provided. " +
+	system := "Jawab pertanyaan tentang satu inkubator telur hanya berdasarkan JSON FAKTA yang diberikan. " +
 		"Field meanings: latestTemperatureC and latestHumidityPercent are now; targetTemperatureC and " +
 		"targetHumidityPercent are the setpoints; mean/min/maxTemperatureC and meanHumidityPercent summarise the " +
 		"window; lampMinutesAtFullDuty is minutes the LAMP spent at 95%+ duty (not the fan); " +
@@ -487,19 +487,19 @@ func templateAnswer(facts assistFacts, question string) string {
 	switch {
 	case strings.Contains(q, "last night") || strings.Contains(q, "overnight") || strings.Contains(q, "24"):
 		if facts.ColdStart {
-			b.WriteString("Ignoring a cold start in the window: ")
+			b.WriteString("Mengabaikan fase mulai dingin dalam rentang ini: ")
 		}
-		fmt.Fprintf(&b, "over the last %d hours the box averaged %.1f°C (low %.1f°C, high %.1f°C) against a %.1f°C target, on %d readings. ",
+		fmt.Fprintf(&b, "selama %d jam terakhir, inkubator rata-rata berada di %.1f°C (low %.1f°C, high %.1f°C) dengan target %.1f°C, berdasarkan %d pembacaan. ",
 			facts.WindowHours, facts.MeanC, facts.MinC, facts.MaxC, facts.TargetC, facts.Samples)
 		if len(facts.Excursions) > 0 {
 			e := facts.Excursions[0]
-			fmt.Fprintf(&b, "The largest stretch away from target was around %s UTC, averaging %.1f°C with the lamp at %.0f%%. ",
+			fmt.Fprintf(&b, "Periode terjauh dari target terjadi sekitar %s UTC, rata-rata %.1f°C dengan lampu pada %.0f%%. ",
 				e.Start.Format("15:04"), e.AvgC, e.Lamp)
 		} else {
-			b.WriteString("Nothing drifted more than 1°C from target. ")
+			b.WriteString("Tidak ada penyimpangan lebih dari 1°C dari target. ")
 		}
 		if facts.SaturatedMins > 0 {
-			fmt.Fprintf(&b, "The lamp ran at full duty for about %d minutes in total.", facts.SaturatedMins)
+			fmt.Fprintf(&b, "Lampu menyala penuh selama sekitar %d menit.", facts.SaturatedMins)
 		}
 	case strings.Contains(q, "duty") || strings.Contains(q, "lamp") || strings.Contains(q, "heater") || strings.Contains(q, "fan"):
 		fmt.Fprintf(&b, "In the last %d hours the lamp averaged %.0f%% output and sat at full duty for about %d minutes; the fan averaged %.0f%%. ",
@@ -508,21 +508,21 @@ func templateAnswer(facts assistFacts, question string) string {
 			b.WriteString("Long stretches at full duty while the box stays off target point at a weak heater or escaping air.")
 		}
 	case strings.Contains(q, "humid"):
-		fmt.Fprintf(&b, "Humidity averaged %.1f%% against a %.0f%% target", facts.MeanH, facts.TargetH)
+		fmt.Fprintf(&b, "Kelembapan rata-rata %.1f%% dengan target %.0f%%", facts.MeanH, facts.TargetH)
 		if facts.LatestH != nil {
-			fmt.Fprintf(&b, ", most recently %.1f%%", *facts.LatestH)
+			fmt.Fprintf(&b, ", terakhir %.1f%%", *facts.LatestH)
 		}
-		b.WriteString(". I can only report the readings, not the cause of the gap.")
+		b.WriteString(". Saya hanya dapat melaporkan pembacaan, bukan penyebab selisihnya.")
 	case strings.Contains(q, "risk") || strings.Contains(q, "danger") || strings.Contains(q, "problem"):
-		fmt.Fprintf(&b, "Day %d of the cycle. The box spent about %d minutes more than 1°C from target in the last %d hours, and the lamp sat at full duty for %d of them. ",
+		fmt.Fprintf(&b, "Hari %d siklus. Inkubator menyimpang lebih dari 1°C dari target selama sekitar %d menit dalam %d jam terakhir, dan lampu menyala penuh selama %d menit. ",
 			facts.Day, facts.OffTargetMins, facts.WindowHours, facts.SaturatedMins)
 		if facts.SaturatedMins >= 10 && facts.OffTargetMins >= 10 {
-			b.WriteString("Sustained full duty while still off target usually means the heater is weak or air is escaping, worth a look.")
+			b.WriteString("Lampu yang terus menyala penuh saat suhu masih jauh dari target biasanya berarti pemanas melemah atau ada kebocoran udara; sebaiknya diperiksa.")
 		} else {
-			b.WriteString("That pattern is consistent with normal cycling.")
+			b.WriteString("Pola ini masih sesuai dengan siklus normal.")
 		}
 	default:
-		fmt.Fprintf(&b, "Right now it is %s at a %.1f°C target, day %d of the cycle. In the last %d hours it averaged %.1f°C (%.1f to %.1f) over %d readings.",
+		fmt.Fprintf(&b, "Saat ini suhunya %s dengan target %.1f°C, hari ke-%d siklus. Dalam %d jam terakhir rata-ratanya %.1f°C (%.1f hingga %.1f) dari %d pembacaan.",
 			latestText(facts), facts.TargetC, facts.Day, facts.WindowHours, facts.MeanC, facts.MinC, facts.MaxC, facts.Samples)
 	}
 	return b.String()

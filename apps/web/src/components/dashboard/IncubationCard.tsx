@@ -23,7 +23,7 @@ export function IncubationCard() {
     <Card>
       <SectionHeader
         icon={<EggRegular size={18} />}
-        title="Incubation"
+        title="Inkubasi"
         trailing={
           phase ? (
             <Badge color={phase.color} variant="light" size="sm" tt="none">
@@ -36,7 +36,7 @@ export function IncubationCard() {
       {incubation ? (
         <SimpleGrid cols={{ base: 3 }} spacing="sm" mb="sm">
           <Stack gap={0}>
-            <Text size="xs" c="dimmed">Day</Text>
+            <Text size="xs" c="dimmed">Hari</Text>
             <Text size="lg" fw={700} ff="monospace">{incubation.hari_ke}</Text>
           </Stack>
           <Stack gap={0}>
@@ -94,7 +94,7 @@ export function IncubationCard() {
           Test turner
         </Button>
         <Group gap="xs" wrap="nowrap">
-          <Text size="sm" c="dimmed">Auto</Text>
+          <Text size="sm" c="dimmed">Otomatis</Text>
           <Switch
             size="md"
             checked={(incubation?.mode_auto ?? 1) === 1}

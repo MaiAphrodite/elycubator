@@ -33,10 +33,10 @@ export function InstallButton() {
   return (
     <Popover opened={opened} onChange={setOpened} position="bottom-end" width={280} radius="lg">
       <Popover.Target>
-        <Tooltip label="Install as an app" disabled={opened}>
+        <Tooltip label="Pasang sebagai aplikasi" disabled={opened}>
           <ActionIcon
             variant="default"
-            aria-label="Install PinkEggs as an app"
+            aria-label="Pasang PinkEggs sebagai aplikasi"
             onClick={() => {
               if (!promptInstall()) setOpened(true);
             }}

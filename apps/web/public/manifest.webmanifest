@@ -2,7 +2,7 @@
   "id": "/",
   "name": "PinkEggs",
   "short_name": "PinkEggs",
-  "description": "Live incubator dashboard: temperature, humidity, incubation cycle and actuator control.",
+  "description": "Dasbor inkubator langsung: suhu, kelembapan, siklus inkubasi, dan kendali aktuator.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

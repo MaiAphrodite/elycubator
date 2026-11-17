@@ -50,7 +50,7 @@ export function DeviceCard({ deviceId, bufferedReadings, frameAge }: DeviceCardP
     <Card h="100%">
       <SectionHeader
         icon={<ChipRegular size={18} />}
-        title="Device"
+        title="Perangkat"
         trailing={
           <Text size="xs" fw={600} c={live ? "sage.7" : "amber.7"} tt="none">
             {live ? "Live" : "Stale"}

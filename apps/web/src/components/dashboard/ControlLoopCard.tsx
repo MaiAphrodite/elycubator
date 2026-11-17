@@ -75,7 +75,7 @@ export function ControlLoopCard({
     <Card h="100%">
       <SectionHeader
         icon={<Filter2Regular size={18} />}
-        title="PID control"
+        title="Kontrol PID"
         trailing={
           <Badge size="sm" variant="light" color={modeAuto === 1 ? "sage" : "amber"} radius="xl">
             {modeAuto === 1 ? "Auto" : "Manual"}
