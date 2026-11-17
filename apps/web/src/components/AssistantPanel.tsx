@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActionIcon,
   Button,
@@ -11,6 +11,7 @@ import {
 } from "@mantine/core";
 import { AlertRegular, SendPlaneRegular } from "@mingcute/react/core-regular";
 import { useAuth } from "../contexts/AuthContext";
+import type { Device } from "../types/device";
 import { SectionHeader } from "./dashboard/SectionHeader";
 
 interface AssistantReply {
@@ -31,17 +32,40 @@ const PRESETS = [
  */
 export function AssistantPanel({ deviceId }: { readonly deviceId: string | null }) {
   const { apiFetch } = useAuth();
+  // The live socket only knows the device while it is streaming, but the
+  // answers come from stored telemetry, so fall back to the owned device list
+  // and let the panel work with the incubator switched off.
+  const [ownedDeviceId, setOwnedDeviceId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (deviceId) return;
+    let cancelled = false;
+    apiFetch("/api/devices")
+      .then((response) => response.json())
+      .then((body) => {
+        if (cancelled || !body?.success) return;
+        const first = (body.data as Device[] | undefined)?.[0];
+        if (first) setOwnedDeviceId(first.id);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [apiFetch, deviceId]);
+
   const [question, setQuestion] = useState("");
   const [reply, setReply] = useState<AssistantReply | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const activeDeviceId = deviceId ?? ownedDeviceId;
+
   const ask = async (text: string) => {
-    if (!deviceId || text.trim().length === 0) return;
+    if (!activeDeviceId || text.trim().length === 0) return;
     setBusy(true);
     setError(null);
     try {
-      const res = await apiFetch(`/api/device/${deviceId}/assistant`, {
+      const res = await apiFetch(`/api/device/${activeDeviceId}/assistant`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: text.trim() }),
@@ -82,7 +106,7 @@ export function AssistantPanel({ deviceId }: { readonly deviceId: string | null 
               setQuestion(preset);
               void ask(preset);
             }}
-            disabled={busy || !deviceId}
+            disabled={busy || !activeDeviceId}
           >
             {preset}
           </Button>
@@ -109,7 +133,7 @@ export function AssistantPanel({ deviceId }: { readonly deviceId: string | null 
             size="lg"
             aria-label="Ask"
             loading={busy}
-            disabled={!deviceId || question.trim().length === 0}
+            disabled={!activeDeviceId || question.trim().length === 0}
           >
             <SendPlaneRegular size={20} />
           </ActionIcon>
@@ -123,6 +147,12 @@ export function AssistantPanel({ deviceId }: { readonly deviceId: string | null 
             Reading the last 24 hours of telemetry
           </Text>
         </Group>
+      )}
+
+      {!activeDeviceId && (
+        <Text size="xs" c="dimmed" mt="sm">
+          No device on this account yet. Claim one on the Devices page first.
+        </Text>
       )}
 
       {error && (

@@ -67,6 +67,7 @@ let disconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectDelay = 2000;
 let intentionalClose = false;
+let bootstrapTimer: ReturnType<typeof setTimeout> | null = null;
 
 function emit() {
   for (const l of listeners) l();
@@ -133,6 +134,31 @@ function seedHistory(deviceId: string) {
       setState(patch);
     })
     .catch(() => {});
+}
+
+/**
+ * The store only learns which device exists from a live frame, so an incubator
+ * that is switched off leaves the dashboard blank even though the server has
+ * weeks of stored readings. Fall back to the owned device list after a short
+ * wait so the last known data still renders.
+ */
+function bootstrapFromDeviceList() {
+  if (bootstrapTimer) return;
+  bootstrapTimer = setTimeout(() => {
+    bootstrapTimer = null;
+    if (state.deviceId) return;
+    apiFetch("/api/devices")
+      .then((response) => response.json())
+      .then((json) => {
+        if (!json?.success || state.deviceId) return;
+        const first = json.data?.[0];
+        if (!first?.id) return;
+        setState({ deviceId: first.id });
+        seedHistory(first.id);
+        seedSettings(first.id);
+      })
+      .catch(() => {});
+  }, 4000);
 }
 
 function connect() {
@@ -221,7 +247,10 @@ function subscribe(listener: () => void) {
     clearTimeout(disconnectTimer);
     disconnectTimer = null;
   }
-  if (subscribers === 0) connect();
+  if (subscribers === 0) {
+    connect();
+    bootstrapFromDeviceList();
+  }
   subscribers += 1;
   return () => {
     listeners.delete(listener);
