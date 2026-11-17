@@ -15,6 +15,9 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useTelemetryStream } from "../hooks/useTelemetryStream";
 import { LinkTrace } from "../components/LinkTrace";
+import { AlertBell } from "../components/AlertBell";
+import { InstallButton } from "../components/InstallButton";
+import { useAlertEngine } from "../hooks/useAlertEngine";
 import { BrandMark } from "../components/BrandMark";
 
 interface AppLayoutProps {
@@ -34,6 +37,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { lastReceivedAt } = useTelemetryStream();
+  useAlertEngine();
   const showWordmark = useMediaQuery("(min-width: 36em)");
 
   return (
@@ -65,6 +69,8 @@ export function AppLayout({ children }: AppLayoutProps) {
               </Text>
             )}
             <LinkTrace lastReceivedAt={lastReceivedAt} />
+            <InstallButton />
+            <AlertBell />
             <UnstyledButton onClick={logout} style={{ display: 'flex', alignItems: 'center' }}>
               <ExitRegular size={20} color="var(--mantine-color-red-6)" />
             </UnstyledButton>

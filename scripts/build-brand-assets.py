@@ -51,6 +51,21 @@ def split(src: Image.Image) -> tuple[Image.Image, Image.Image]:
     return src.crop((0, 0, src.width, cut)), src.crop((0, cut, src.width, src.height))
 
 
+def square_tile(mark: Image.Image, size: int, inset_ratio: float) -> Image.Image:
+    """Full-bleed ink square with the mark centred, for maskable icons."""
+    inset = round(size * inset_ratio)
+    inner = mark.resize(
+        (size - 2 * inset, round(mark.height * (size - 2 * inset) / mark.width)),
+        Image.LANCZOS,
+    )
+    tile = Image.new("RGBA", (size, size), (*INK, 255))
+    tile.alpha_composite(
+        recolor(inner, CREAM),
+        ((size - inner.width) // 2, (size - inner.height) // 2),
+    )
+    return tile
+
+
 def rounded_tile(mark: Image.Image, size: int, radius_ratio: float = 0.22) -> Image.Image:
     """Ink tile with the cream mark centred, used for favicons."""
     inset = round(size * 0.14)
@@ -92,6 +107,15 @@ def main() -> None:
 
     for name, size in (("apple-touch-icon.png", 180),):
         rounded_tile(mark, size).save(OUT / name, optimize=True)
+        print(f"{name:24} {size}x{size}")
+
+    # Installable PWA icons. Maskable keeps the mark inside the 80% safe circle.
+    for name, size, inset in (
+        ("icon-192.png", 192, 0.14),
+        ("icon-512.png", 512, 0.14),
+        ("icon-maskable-512.png", 512, 0.22),
+    ):
+        square_tile(mark, size, inset).save(OUT / name, optimize=True)
         print(f"{name:24} {size}x{size}")
 
     # The tab icon is served from the site root.

@@ -7,6 +7,9 @@ import "@mantine/core/styles.css";
 import "./index.css";
 import { theme } from "./theme";
 import App from "./App";
+import { registerServiceWorker } from "./lib/pwa";
+
+registerServiceWorker();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
