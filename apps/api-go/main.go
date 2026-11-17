@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"os/signal"
@@ -24,6 +25,10 @@ var (
 )
 
 func main() {
+	// Go's mime table has no entry for the web app manifest, so it would be
+	// served as text/plain. Browsers are lenient but the spec type is this one.
+	mime.AddExtensionType(".webmanifest", "application/manifest+json")
+
 	if err := validateConfig(); err != nil {
 		log.Fatalf("config: %v", err)
 	}
