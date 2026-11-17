@@ -17,6 +17,7 @@ import { useTelemetryStream } from "../hooks/useTelemetryStream";
 import { LinkTrace } from "../components/LinkTrace";
 import { AlertBell } from "../components/AlertBell";
 import { InstallButton } from "../components/InstallButton";
+import { InstallBanner } from "../components/InstallBanner";
 import { useAlertEngine } from "../hooks/useAlertEngine";
 import { BrandMark } from "../components/BrandMark";
 
@@ -199,6 +200,7 @@ export function AppLayout({ children }: AppLayoutProps) {
           })}
         </Box>
       )}
+        <InstallBanner />
       </AppShell>
     </>
   );

@@ -69,7 +69,7 @@ export function promptInstall(): boolean {
 /** Which instruction string makes sense for this browser. */
 export function installHint(): string {
   const ua = navigator.userAgent;
-  if (/iPad|iPhone|iPod/.test(ua)) return "Tap Share, then Add to Home Screen.";
-  if (/Android/.test(ua)) return "Open the browser menu, then Add to Home screen.";
-  return "Use the install icon in the address bar, or the browser menu.";
+  if (/iPad|iPhone|iPod/.test(ua)) return "Share, then Add to Home Screen";
+  if (/Android/.test(ua)) return "Browser menu, then Add to Home screen";
+  return "Address bar install icon, or browser menu";
 }
