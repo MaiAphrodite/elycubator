@@ -27,20 +27,23 @@ import (
 
 const (
 	assistantWindow      = 24 * time.Hour
-	assistantBucketSecs  = 600
+	assistantBucketSecs  = 1200
 	assistantOffTargetC  = 1.0
 	assistantSaturatedAt = 95.0
 	assistantMaxBuckets  = 200
 )
 
 type factBucket struct {
-	Start  time.Time `json:"start"`
-	AvgC   float64   `json:"avgTemperatureC"`
-	MinC   float64   `json:"minTemperatureC"`
-	MaxC   float64   `json:"maxTemperatureC"`
-	Lamp   float64   `json:"lampMeanDutyPercent"`
-	Fan    float64   `json:"fanMeanDutyPercent"`
-	Points int       `json:"points"`
+	Start   time.Time `json:"start"`
+	AvgC    float64   `json:"avgTemperatureC"`
+	MinC    float64   `json:"minTemperatureC"`
+	MaxC    float64   `json:"maxTemperatureC"`
+	AvgH    float64   `json:"avgHumidityPercent"`
+	MinH    float64   `json:"minHumidityPercent"`
+	MaxH    float64   `json:"maxHumidityPercent"`
+	Lamp    float64   `json:"lampMeanDutyPercent"`
+	Fan     float64   `json:"fanMeanDutyPercent"`
+	Samples int       `json:"readings"`
 }
 
 type assistFacts struct {
@@ -223,7 +226,9 @@ func countAll(ctx context.Context, deviceID, since string) (int, error) {
 func readBuckets(ctx context.Context, deviceID, since string, targetC float64) ([]factBucket, error) {
 	rows, err := dbConn.QueryContext(ctx, `
 		SELECT CAST(strftime('%s', timestamp) AS INTEGER) / ? AS bucket,
-		       AVG(temperature), MIN(temperature), MAX(temperature), AVG(lamp_duty), AVG(fan_duty), COUNT(*)
+		       AVG(temperature), MIN(temperature), MAX(temperature),
+		       AVG(humidity), MIN(humidity), MAX(humidity),
+		       AVG(lamp_duty), AVG(fan_duty), COUNT(*)
 		FROM telemetry
 		WHERE device_id = ? AND timestamp >= ? AND temperature >= ?
 		GROUP BY bucket ORDER BY bucket DESC LIMIT ?`,
@@ -237,11 +242,12 @@ func readBuckets(ctx context.Context, deviceID, since string, targetC float64) (
 	for rows.Next() {
 		var epoch int64
 		var b factBucket
-		if err := rows.Scan(&epoch, &b.AvgC, &b.MinC, &b.MaxC, &b.Lamp, &b.Fan, &b.Points); err != nil {
+		if err := rows.Scan(&epoch, &b.AvgC, &b.MinC, &b.MaxC, &b.AvgH, &b.MinH, &b.MaxH, &b.Lamp, &b.Fan, &b.Samples); err != nil {
 			return nil, err
 		}
 		b.Start = time.Unix(epoch*assistantBucketSecs, 0).UTC()
 		b.AvgC, b.MinC, b.MaxC = round1(b.AvgC), round1(b.MinC), round1(b.MaxC)
+		b.AvgH, b.MinH, b.MaxH = round1(b.AvgH), round1(b.MinH), round1(b.MaxH)
 		b.Lamp, b.Fan = round1(b.Lamp), round1(b.Fan)
 		out = append(out, b)
 	}
@@ -261,10 +267,14 @@ func offTargetRuns(buckets []factBucket, target float64) []factBucket {
 			gap := b.Start.Sub(last.Start)
 			if gap <= assistantBucketSecs*time.Second*3/2 {
 				merged := last
-				merged.AvgC = (last.AvgC*float64(last.Points) + b.AvgC*float64(b.Points)) / float64(last.Points+b.Points)
+				total := float64(last.Samples + b.Samples)
+				merged.AvgC = (last.AvgC*float64(last.Samples) + b.AvgC*float64(b.Samples)) / total
+				merged.AvgH = (last.AvgH*float64(last.Samples) + b.AvgH*float64(b.Samples)) / total
 				merged.MinC = minFloat(last.MinC, b.MinC)
 				merged.MaxC = maxFloat(last.MaxC, b.MaxC)
-				merged.Points += b.Points
+				merged.MinH = minFloat(last.MinH, b.MinH)
+				merged.MaxH = maxFloat(last.MaxH, b.MaxH)
+				merged.Samples += b.Samples
 				merged.Start = b.Start
 				runs[len(runs)-1] = merged
 				continue
