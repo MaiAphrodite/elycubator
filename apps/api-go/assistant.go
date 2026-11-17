@@ -93,7 +93,7 @@ func hAssistant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 
 	facts, err := buildFacts(ctx, deviceID)
@@ -105,6 +105,7 @@ func hAssistant(w http.ResponseWriter, r *http.Request) {
 
 	answer, source, err := answer(ctx, facts, question)
 	if err != nil {
+		log.Printf("assistant: model fallback: %v", err)
 		// Never fail the panel because a model is unreachable: fall back to
 		// the deterministic wording over the same facts.
 		answer, source = templateAnswer(facts, question), "facts"
@@ -342,7 +343,9 @@ func askModel(ctx context.Context, key string, facts assistFacts, question strin
 	payload := map[string]interface{}{
 		"model":       model,
 		"temperature": 0,
-		"max_tokens":  220,
+		// Reasoners spend the budget thinking before they emit an answer, so a
+		// small cap comes back as an empty completion.
+		"max_tokens": 700,
 		"messages": []map[string]string{
 			{"role": "system", "content": system},
 			{"role": "user", "content": "FACTS:\n" + string(factsJSON) + "\n\nQUESTION: " + question},
@@ -359,6 +362,12 @@ func askModel(ctx context.Context, key string, facts assistFacts, question strin
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("User-Agent", "PinkEggs/1.0 (+https://pinkegg.app)")
+	if strings.Contains(base, "opencode.ai") {
+		// The OpenCode gateway rejects calls without a session id, and its edge
+		// rejects unfamiliar clients; both are required and neither is a secret.
+		req.Header.Set("x-session-id", "pinkeggs-"+facts.DeviceID)
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -389,7 +398,7 @@ func askModel(ctx context.Context, key string, facts assistFacts, question strin
 	text := strings.TrimSpace(parsed.Choices[0].Message.Content)
 	guarded, ok := guardNumbers(text, facts)
 	if !ok {
-		return "", fmt.Errorf("answer contained an unverified figure")
+		return "", fmt.Errorf("unverified figure in: %q", text)
 	}
 	return guarded, nil
 }
@@ -429,24 +438,33 @@ func nearAny(value float64, allowed []float64) bool {
 	return false
 }
 
-/** Every figure the facts actually contain, for comparison against an answer. */
+/** Every figure the facts contain, discovered from the JSON itself. */
 func factNumbers(facts assistFacts) []float64 {
-	out := []float64{
-		facts.TargetC, facts.TargetH, facts.MeanC, facts.MinC, facts.MaxC, facts.MeanH,
-		facts.MeanLampDuty, facts.MeanFanDuty,
-		float64(facts.SaturatedMins), float64(facts.OffTargetMins),
-		float64(facts.Samples), float64(facts.Day), float64(facts.WindowHours),
-		assistantOffTargetC,
+	raw, err := json.Marshal(facts)
+	out := []float64{assistantOffTargetC, assistantSaturatedAt}
+	if err != nil {
+		return out
 	}
-	if facts.LatestC != nil {
-		out = append(out, *facts.LatestC)
+	var decoded interface{}
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return out
 	}
-	if facts.LatestH != nil {
-		out = append(out, *facts.LatestH)
+	var walk func(v interface{})
+	walk = func(v interface{}) {
+		switch typed := v.(type) {
+		case float64:
+			out = append(out, typed)
+		case []interface{}:
+			for _, item := range typed {
+				walk(item)
+			}
+		case map[string]interface{}:
+			for _, item := range typed {
+				walk(item)
+			}
+		}
 	}
-	for _, e := range facts.Excursions {
-		out = append(out, e.AvgC, e.MinC, e.MaxC, e.Lamp, e.Fan)
-	}
+	walk(decoded)
 	return out
 }
 
