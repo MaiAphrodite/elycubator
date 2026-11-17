@@ -103,6 +103,7 @@ func newRouter() http.Handler {
 	registerAuth(mux)
 	registerDevice(mux)
 	registerTelemetry(mux)
+	registerAssistant(mux)
 	registerIncubation(mux)
 	registerWS(mux)
 	registerAPIPhp(mux)

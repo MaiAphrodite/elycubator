@@ -18,6 +18,7 @@ import {
   StatCard,
 } from "../components/dashboard";
 import { PageHeader } from "../components/PageHeader";
+import { AssistantPanel } from "../components/AssistantPanel";
 import { useTelemetryStream } from "../hooks/useTelemetryStream";
 import { useIncubation, HATCHER_START_DAY } from "../hooks/useIncubation";
 import { useFrameAge } from "../hooks/useFrameAge";
@@ -151,6 +152,8 @@ export function DashboardPage() {
           turnIntervalHrs={settings?.turnIntervalHrs ?? null}
           turnAngle={settings?.turnAngle ?? null}
         />
+
+        <AssistantPanel deviceId={deviceId} />
 
         <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
           <ControlLoopCard
