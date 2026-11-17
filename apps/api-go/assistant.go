@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -33,11 +35,11 @@ const (
 
 type factBucket struct {
 	Start  time.Time `json:"start"`
-	AvgC   float64   `json:"avgC"`
-	MinC   float64   `json:"minC"`
-	MaxC   float64   `json:"maxC"`
-	Lamp   float64   `json:"lampDuty"`
-	Fan    float64   `json:"fanDuty"`
+	AvgC   float64   `json:"avgTemperatureC"`
+	MinC   float64   `json:"minTemperatureC"`
+	MaxC   float64   `json:"maxTemperatureC"`
+	Lamp   float64   `json:"lampMeanDutyPercent"`
+	Fan    float64   `json:"fanMeanDutyPercent"`
 	Points int       `json:"points"`
 }
 
@@ -51,16 +53,16 @@ type assistFacts struct {
 	TargetH       float64      `json:"targetHumidity"`
 	Day           int64        `json:"incubationDay"`
 	ModeAuto      int64        `json:"modeAuto"`
-	MeanC         float64      `json:"meanC"`
-	MinC          float64      `json:"minC"`
-	MaxC          float64      `json:"maxC"`
-	MeanH         float64      `json:"meanHumidity"`
-	MeanLampDuty  float64      `json:"meanLampDutyPercent"`
-	MeanFanDuty   float64      `json:"meanFanDutyPercent"`
-	SaturatedMins int          `json:"minutesAtFullDuty"`
-	OffTargetMins int          `json:"minutesOffTarget"`
-	ColdStart     bool         `json:"coldStartIgnored"`
-	Excursions    []factBucket `json:"excursionsRecentFirst"`
+	MeanC         float64      `json:"meanTemperatureC"`
+	MinC          float64      `json:"minTemperatureC"`
+	MaxC          float64      `json:"maxTemperatureC"`
+	MeanH         float64      `json:"meanHumidityPercent"`
+	MeanLampDuty  float64      `json:"lampMeanDutyPercent"`
+	MeanFanDuty   float64      `json:"fanMeanDutyPercent"`
+	SaturatedMins int          `json:"lampMinutesAtFullDuty"`
+	OffTargetMins int          `json:"minutesMoreThan1CFromTarget"`
+	ColdStart     bool         `json:"coldStartExcludedFromStatistics"`
+	Excursions    []factBucket `json:"recentPeriodsOffTarget"`
 	LastUpdate    string       `json:"lastReadingUtc"`
 }
 
@@ -146,12 +148,12 @@ func buildFacts(ctx context.Context, deviceID string) (assistFacts, error) {
 	}
 	facts.ColdStart = all > totals.samples
 	facts.Samples = totals.samples
-	facts.MeanC = totals.meanC
-	facts.MinC = totals.minC
-	facts.MaxC = totals.maxC
-	facts.MeanH = totals.meanH
-	facts.MeanLampDuty = totals.meanLamp
-	facts.MeanFanDuty = totals.meanFan
+	facts.MeanC = round1(totals.meanC)
+	facts.MinC = round1(totals.minC)
+	facts.MaxC = round1(totals.maxC)
+	facts.MeanH = round1(totals.meanH)
+	facts.MeanLampDuty = round1(totals.meanLamp)
+	facts.MeanFanDuty = round1(totals.meanFan)
 	facts.SaturatedMins = totals.saturated * 2 / 60
 	facts.OffTargetMins = totals.offTarget * 2 / 60
 
@@ -162,11 +164,11 @@ func buildFacts(ctx context.Context, deviceID string) (assistFacts, error) {
 		`SELECT temperature, humidity, timestamp FROM telemetry WHERE device_id = ? ORDER BY timestamp DESC LIMIT 1`,
 		deviceID).Scan(&latest, &latestH, &lastTS); err == nil {
 		if latest.Valid {
-			v := latest.Float64
+			v := round1(latest.Float64)
 			facts.LatestC = &v
 		}
 		if latestH.Valid {
-			v := latestH.Float64
+			v := round1(latestH.Float64)
 			facts.LatestH = &v
 		}
 		facts.LastUpdate = lastTS.String
@@ -238,6 +240,8 @@ func readBuckets(ctx context.Context, deviceID, since string, targetC float64) (
 			return nil, err
 		}
 		b.Start = time.Unix(epoch*assistantBucketSecs, 0).UTC()
+		b.AvgC, b.MinC, b.MaxC = round1(b.AvgC), round1(b.MinC), round1(b.MaxC)
+		b.Lamp, b.Fan = round1(b.Lamp), round1(b.Fan)
 		out = append(out, b)
 	}
 	return out, nil
@@ -271,6 +275,11 @@ func offTargetRuns(buckets []factBucket, target float64) []factBucket {
 		}
 	}
 	return runs
+}
+
+/** One decimal place: prose does not need fifteen digits, and neither does the model. */
+func round1(v float64) float64 {
+	return math.Round(v*10) / 10
 }
 
 func abs(v float64) float64 {
@@ -318,9 +327,17 @@ func askModel(ctx context.Context, key string, facts assistFacts, question strin
 	}
 
 	system := "You answer questions about one egg incubator using ONLY the FACTS JSON provided. " +
-		"Rules: never invent a number, timestamp or cause that is not in the facts; quote figures exactly as given; " +
-		"if the facts cannot answer the question, say what is missing in one sentence; " +
-		"answer in at most three sentences, plain language, no markdown, no lists."
+		"Field meanings: latestTemperatureC and latestHumidityPercent are now; targetTemperatureC and " +
+		"targetHumidityPercent are the setpoints; mean/min/maxTemperatureC and meanHumidityPercent summarise the " +
+		"window; lampMinutesAtFullDuty is minutes the LAMP spent at 95%+ duty (not the fan); " +
+		"lampMeanDutyPercent and fanMeanDutyPercent are average outputs; minutesMoreThan1CFromTarget counts minutes " +
+		"away from the setpoint; recentPeriodsOffTarget lists runs with their start (UTC), average temperature and " +
+		"mean lamp duty; coldStartExcludedFromStatistics means a restart was removed from the numbers. " +
+		"Rules: answer the question in the first sentence; never invent a number, timestamp or cause that is not in " +
+		"the facts; quote figures exactly as given; if the facts cannot answer it, say so in one sentence and name " +
+		"what is missing; at most three sentences, plain language, no markdown, no lists, no field names; " +
+		"never print more than one decimal place; never mention the facts JSON, the data source or how you know, " +
+		"just answer as if you are reading the incubator."
 
 	payload := map[string]interface{}{
 		"model":       model,
@@ -369,39 +386,68 @@ func askModel(ctx context.Context, key string, facts assistFacts, question strin
 	if len(parsed.Choices) == 0 || strings.TrimSpace(parsed.Choices[0].Message.Content) == "" {
 		return "", fmt.Errorf("empty completion")
 	}
-	return guardNumbers(strings.TrimSpace(parsed.Choices[0].Message.Content), facts), nil
+	text := strings.TrimSpace(parsed.Choices[0].Message.Content)
+	guarded, ok := guardNumbers(text, facts)
+	if !ok {
+		return "", fmt.Errorf("answer contained an unverified figure")
+	}
+	return guarded, nil
 }
 
 /**
- * Reject an answer that introduces a number absent from the facts. A wrong
- * figure in front of an audience costs more than a dull sentence.
+ * Reject an answer that introduces a number absent from the facts. Values are
+ * compared numerically with a rounding tolerance, and small whole numbers are
+ * allowed because days, hours and counts legitimately appear in prose.
+ * On a violation the caller falls back to the template wording.
  */
-func guardNumbers(text string, facts assistFacts) string {
-	allowed := map[string]bool{}
-	add := func(v float64) { allowed[fmt.Sprintf("%.1f", v)] = true }
-	add(facts.TargetC)
-	add(facts.TargetH)
-	add(facts.MeanC)
-	add(facts.MinC)
-	add(facts.MaxC)
-	add(facts.MeanH)
-	if facts.LatestC != nil {
-		add(*facts.LatestC)
-	}
-	if facts.LatestH != nil {
-		add(*facts.LatestH)
-	}
-	allowed[fmt.Sprintf("%d", facts.Samples)] = true
-	allowed[fmt.Sprintf("%d", facts.Day)] = true
+func guardNumbers(text string, facts assistFacts) (string, bool) {
+	allowed := factNumbers(facts)
 
 	for _, token := range strings.FieldsFunc(text, func(r rune) bool {
 		return !(r >= '0' && r <= '9') && r != '.'
 	}) {
-		if strings.Contains(token, ".") && !allowed[token] {
-			return templateAnswer(facts, "") + " (checked against recorded readings)"
+		value, err := strconv.ParseFloat(strings.Trim(token, "."), 64)
+		if err != nil {
+			continue
+		}
+		if value == math.Trunc(value) && value >= 0 && value <= 31 {
+			continue
+		}
+		if !nearAny(value, allowed) {
+			return "", false
 		}
 	}
-	return text
+	return text, true
+}
+
+func nearAny(value float64, allowed []float64) bool {
+	for _, candidate := range allowed {
+		if math.Abs(value-candidate) <= 0.051 {
+			return true
+		}
+	}
+	return false
+}
+
+/** Every figure the facts actually contain, for comparison against an answer. */
+func factNumbers(facts assistFacts) []float64 {
+	out := []float64{
+		facts.TargetC, facts.TargetH, facts.MeanC, facts.MinC, facts.MaxC, facts.MeanH,
+		facts.MeanLampDuty, facts.MeanFanDuty,
+		float64(facts.SaturatedMins), float64(facts.OffTargetMins),
+		float64(facts.Samples), float64(facts.Day), float64(facts.WindowHours),
+		assistantOffTargetC,
+	}
+	if facts.LatestC != nil {
+		out = append(out, *facts.LatestC)
+	}
+	if facts.LatestH != nil {
+		out = append(out, *facts.LatestH)
+	}
+	for _, e := range facts.Excursions {
+		out = append(out, e.AvgC, e.MinC, e.MaxC, e.Lamp, e.Fan)
+	}
+	return out
 }
 
 // ---------------------------------------------------------------- templates
